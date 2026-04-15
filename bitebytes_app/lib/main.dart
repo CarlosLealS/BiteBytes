@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'home_page.dart'; // Importamos tu nueva página
+import 'search_page.dart'; // cambiado
 
 void main() {
   runApp(const MyApp());
@@ -13,10 +13,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'BiteBytes',
       theme: ThemeData(
-        primarySwatch: Colors.orange, // Tema principal
+        primarySwatch: Colors.orange,
       ),
-      home: const HomePage(),
+      home: const SearchPage(),
     );
   }
 }
-
