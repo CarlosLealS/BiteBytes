@@ -18,10 +18,15 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Tamaño original de la imagen en píxeles
+    const double imagenOriginalAncho = 1600.0; // ← pon el ancho real de MapaUCN.png
+    const double imagenOriginalAlto  = 900.0;  // ← pon el alto real de MapaUCN.png
+
+    // Coordenadas como porcentaje del tamaño original
     final lugares = [
-      {'nombre': 'Cafetería Amadora', 'x': 1110.0, 'y': 340.0},
-      {'nombre': 'Cafetería Derecho', 'x': 1310.0, 'y': 390.0},
-      {'nombre': 'Cafetería Ciencias del mar',   'x': 760.0,  'y': 510.0},
+      {'nombre': 'Cafetería Amadora',        'x': 1010.0 / imagenOriginalAncho, 'y': 420.0 / imagenOriginalAlto},
+      {'nombre': 'Cafetería Derecho',         'x': 1260.0 / imagenOriginalAncho, 'y': 500.0 / imagenOriginalAlto},
+      {'nombre': 'Cafetería Ciencias del mar','x': 600.0  / imagenOriginalAncho, 'y': 650.0 / imagenOriginalAlto},
     ];
 
     return Scaffold(
@@ -68,37 +73,54 @@ class _SearchPageState extends State<SearchPage> {
           ),
 
           // Mapa con puntos
-          Expanded(                                // ← necesario para que el Stack ocupe el espacio restante
-            child: Stack(
-              children: [
-                // Imagen de fondo
-                Image.asset(
-                  "assets/MapaUCN.png",
-                  width: double.infinity,
-                  height: double.infinity,         // ← ocupa todo el Expanded
-                  fit: BoxFit.contain,
-                ),
-                // Puntos con tooltip
-                ...lugares.map((lugar) => Positioned(
-                  left: lugar['x'] as double,
-                  top: lugar['y'] as double,
-                  child: Tooltip(
-                    message: lugar['nombre'] as String,
-                    child: Icon(
-                      Icons.location_on,
-                      color: Colors.red,
-                      size: 36,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black,
-                          blurRadius: 4,
-                          offset: Offset(0, 0),
-                        ),
-                      ],
+          Expanded(
+            child: LayoutBuilder( // ← mide el espacio disponible en tiempo real
+              builder: (context, constraints) {
+                final ancho = constraints.maxWidth;
+                final alto  = constraints.maxHeight;
+
+                // Calcular tamaño real de la imagen con BoxFit.contain
+                final escala = (ancho / imagenOriginalAncho)
+                    .clamp(0.0, alto / imagenOriginalAlto);
+                final imagenAncho = imagenOriginalAncho * escala;
+                final imagenAlto  = imagenOriginalAlto  * escala;
+
+                // Offset para centrar la imagen
+                final offsetX = (ancho - imagenAncho) / 2;
+                final offsetY = (alto  - imagenAlto)  / 2;
+
+                return Stack(
+                  children: [
+                    // Imagen de fondo
+                    Image.asset(
+                      "assets/MapaUCN.png",
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.contain,
                     ),
-                  ),
-                )),                                // ← paréntesis que faltaba
-              ],
+                    // Puntos con tooltip
+                    ...lugares.map((lugar) => Positioned(
+                      left: offsetX + (lugar['x'] as double) * imagenAncho - 18,
+                      top:  offsetY + (lugar['y'] as double) * imagenAlto  - 36,
+                      child: Tooltip(
+                        message: lugar['nombre'] as String,
+                        child: const Icon(
+                          Icons.location_on,
+                          color: Colors.red,
+                          size: 36,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black,
+                              blurRadius: 4,
+                              offset: Offset(0, 0),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )),
+                  ],
+                );
+              },
             ),
           ),
         ],
