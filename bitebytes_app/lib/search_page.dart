@@ -18,6 +18,12 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lugares = [
+      {'nombre': 'Cafetería Amadora', 'x': 1110.0, 'y': 340.0},
+      {'nombre': 'Cafetería Derecho', 'x': 1310.0, 'y': 390.0},
+      {'nombre': 'Cafetería Ciencias del mar',   'x': 760.0,  'y': 510.0},
+    ];
+
     return Scaffold(
       body: Column(
         children: [
@@ -60,35 +66,42 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
           ),
-/*  ------------------------------------EN TRABAJO-------------------------------------------------
-        // Mapa de locales
-         Stack(
-            children: [
-              // Imagen de fondo
-              Image.asset("assets/MapaUCN.png", width: double.infinity, fit: BoxFit.cover),
-              // punto con tooltip
-              Positioned(
-                left: 120,
-                top: 80,
-                child: GestureDetector(
-                  onTap: (){
-                    //accion al tocar
-                  },
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
+
+          // Mapa con puntos
+          Expanded(                                // ← necesario para que el Stack ocupe el espacio restante
+            child: Stack(
+              children: [
+                // Imagen de fondo
+                Image.asset(
+                  "assets/MapaUCN.png",
+                  width: double.infinity,
+                  height: double.infinity,         // ← ocupa todo el Expanded
+                  fit: BoxFit.contain,
+                ),
+                // Puntos con tooltip
+                ...lugares.map((lugar) => Positioned(
+                  left: lugar['x'] as double,
+                  top: lugar['y'] as double,
+                  child: Tooltip(
+                    message: lugar['nombre'] as String,
+                    child: Icon(
+                      Icons.location_on,
+                      color: Colors.red,
+                      size: 36,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black,
+                          blurRadius: 4,
+                          offset: Offset(0, 0),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              )
-            ]
-          )
---------------------------------------------------------------------*/
-        ],        
+                )),                                // ← paréntesis que faltaba
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

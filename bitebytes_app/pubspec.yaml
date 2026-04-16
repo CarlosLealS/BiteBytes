@@ -60,6 +60,7 @@ flutter:
   assets:
     - assets/logo-ucn.png
     - assets/chaparras.jpg
+    - assets/MapaUCN.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
