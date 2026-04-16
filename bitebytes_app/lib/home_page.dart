@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'search_page.dart';
 
 class NoiseOverlay extends CustomPainter {
   final double noiseSize;
@@ -131,7 +132,10 @@ class HomePage extends StatelessWidget {
                                 horizontal: 40, vertical: 15),
                           ),
                           onPressed: () {
-                            // Aquí luego conectaremos con MapPage
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const SearchPage()),
+                            );
                           },
                           child: const Text("Empezar →"),
                         ),
