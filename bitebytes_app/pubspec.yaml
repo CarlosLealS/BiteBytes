@@ -82,6 +82,7 @@ flutter:
     - family: jsMath-cmmi10
       fonts:
         - asset: fonts/jsMath-cmmi10.ttf
+        - asset: fonts/FugazOne-Regular.ttf
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
