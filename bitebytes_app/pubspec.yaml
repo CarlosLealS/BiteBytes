@@ -61,6 +61,7 @@ flutter:
     - assets/logo-ucn.png
     - assets/chaparras.jpg
     - assets/MapaUCN.png
+    - assets/Fondo_home.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -79,10 +80,12 @@ flutter:
   # list giving the asset and other descriptors for the font. For
   # example:
   fonts:
+    - family: FugazOne
+      fonts:
+        - asset: fonts/FugazOne-Regular.ttf
     - family: jsMath-cmmi10
       fonts:
         - asset: fonts/jsMath-cmmi10.ttf
-        - asset: fonts/FugazOne-Regular.ttf
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
