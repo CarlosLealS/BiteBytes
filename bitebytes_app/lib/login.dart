@@ -5,13 +5,33 @@ class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 
   // URL del backend
-  static const String _googleLoginUrl =
-      'http://localhost:3000/api/auth/google';
+  static const String _apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:3000',
+  );
+  static const String _googleLoginUrl = '$_apiBaseUrl/api/auth/google';
 
-  Future<void> _loginConGoogle() async {
+  Future<bool> _loginConGoogle() async {
     final uri = Uri.parse(_googleLoginUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      if (!await canLaunchUrl(uri)) {
+        return false;
+      }
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _irASearch(BuildContext context) async {
+    final launched = await _loginConGoogle();
+    if (!context.mounted) return;
+    if (!launched) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo abrir el login. Revisa el backend.'),
+        ),
+      );
     }
   }
 
@@ -23,7 +43,7 @@ class LoginPage extends StatelessWidget {
         children: [
           // Imagen de fondo
           Image.asset(
-            'assets/images/campus_fondo.jpg',
+            'assets/campus_fondo.jpg',
             fit: BoxFit.cover,
           ),
 
@@ -69,9 +89,9 @@ class LoginPage extends StatelessWidget {
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton.icon(
-                      onPressed: _loginConGoogle,
+                      onPressed: () => _irASearch(context),
                       icon: Image.asset(
-                        'assets/images/google_logo.png',
+                        'assets/google_logo.png',
                         height: 24,
                         width: 24,
                       ),

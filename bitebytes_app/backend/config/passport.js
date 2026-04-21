@@ -10,7 +10,7 @@ passport.use(new GoogleStrategy({
   callbackURL:  process.env.GOOGLE_CALLBACK_URL,
 }, async (accessToken, refreshToken, profile, done) => {
   try {
-    const email = profile.emails[0].value;
+    const email = profile.emails[0].value.toLowerCase();
     const dominio = email.split('@')[1];
 
     // Verificar dominio permitido

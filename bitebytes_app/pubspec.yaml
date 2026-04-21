@@ -63,6 +63,8 @@ flutter:
     - assets/chaparras.jpg
     - assets/MapaUCN.png
     - assets/Fondo_home.png
+    - assets/campus_fondo.jpg
+    - assets/google_logo.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

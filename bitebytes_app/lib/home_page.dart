@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'search_page.dart';
+import 'login.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -128,7 +128,7 @@ class HomePage extends StatelessWidget {
                                         context,
                                         MaterialPageRoute(
                                           builder: (context) =>
-                                              const SearchPage(),
+                                              const LoginPage(),
                                         ),
                                       );
                                     },
