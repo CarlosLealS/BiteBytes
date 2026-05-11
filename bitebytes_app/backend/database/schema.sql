@@ -1,9 +1,3 @@
--- ============================================================
--- BiteBytes - Schema de Base de Datos
--- Ejecutar con: psql -U postgres -d bitebytes -f schema.sql
--- ============================================================
-
--- Extensión para UUIDs
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ============================================================
