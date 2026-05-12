@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'dart:html' as html;
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -11,28 +11,13 @@ class LoginPage extends StatelessWidget {
   );
   static const String _googleLoginUrl = '$_apiBaseUrl/api/auth/google';
 
-  Future<bool> _loginConGoogle() async {
-    final uri = Uri.parse(_googleLoginUrl);
-    try {
-      if (!await canLaunchUrl(uri)) {
-        return false;
-      }
-      return await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {
-      return false;
-    }
+  void _loginConGoogle() {
+    // Navegar en la misma ventana/pestaña
+    html.window.location.href = _googleLoginUrl;
   }
 
-  Future<void> _irASearch(BuildContext context) async {
-    final launched = await _loginConGoogle();
-    if (!context.mounted) return;
-    if (!launched) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo abrir el login. Revisa el backend.'),
-        ),
-      );
-    }
+  void _irASearch(BuildContext context) {
+    _loginConGoogle();
   }
 
   @override
