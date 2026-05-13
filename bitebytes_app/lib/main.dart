@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'home_page.dart';
 import 'search_page.dart';
 import 'login.dart';
+import 'home_page_principal.dart';
 import 'duenio/duenio_shell.dart';
 
 void main() {
@@ -29,7 +30,7 @@ class MyApp extends StatelessWidget {
       ],
       supportedLocales: const [Locale('es', 'CL')],
       locale: const Locale('es', 'CL'),
-      home: _hasLoginToken ? const SearchPage() : const LoginPage(),
+      home: _hasLoginToken ? const HomePagePrincipal() : const LoginPage(),
     );
   }
 }
