@@ -1,6 +1,7 @@
 const express  = require('express');
 const cors     = require('cors');
 const passport = require('passport');
+const path = require('path');
 require('dotenv').config();
 
 const app  = express();
@@ -17,6 +18,14 @@ app.use(passport.initialize());
 
 // Rutas
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api', require('./routes/productosRoutes'));
+app.use('/api', require('./routes/publicacionesRoutes'));
+
+
+// Servir imágenes estáticas
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Ruta de upload
+app.use('/api', require('./routes/uploadRoutes'));
 
 // Ruta de prueba
 app.get('/', (req, res) => {

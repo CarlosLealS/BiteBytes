@@ -11,16 +11,13 @@ const registrar = async (req, res) => {
   }
 
   try {
-    // Verificar si el email ya existe
     const existe = await pool.query('SELECT id FROM usuarios WHERE email = $1', [email]);
     if (existe.rows.length > 0) {
       return res.status(409).json({ error: 'El email ya está registrado' });
     }
 
-    // Encriptar contraseña
     const password_hash = await bcrypt.hash(password, 10);
 
-    // Insertar usuario (rol_id 5 = alumno por defecto)
     const result = await pool.query(
       `INSERT INTO usuarios (nombre, email, password_hash, rol_id)
        VALUES ($1, $2, $3, $4)
@@ -44,7 +41,6 @@ const login = async (req, res) => {
   }
 
   try {
-    // Buscar usuario
     const result = await pool.query(
       `SELECT u.id, u.nombre, u.email, u.password_hash, u.activo, r.nombre AS rol
        FROM usuarios u
@@ -59,20 +55,33 @@ const login = async (req, res) => {
 
     const usuario = result.rows[0];
 
-    // Verificar si está activo
     if (!usuario.activo) {
       return res.status(403).json({ error: 'Tu cuenta está desactivada' });
     }
 
-    // Verificar contraseña
     const passwordValido = await bcrypt.compare(password, usuario.password_hash);
     if (!passwordValido) {
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
+    // Si es dueño de tienda, buscar su tienda
+    let tiendaId   = null;
+    let nombreTienda = null;
+
+    if (usuario.rol === 'duenio_tienda') {
+      const tienda = await pool.query(
+        `SELECT id, nombre FROM tiendas WHERE duenio_id = $1 AND activa = true LIMIT 1`,
+        [usuario.id]
+      );
+      if (tienda.rows.length > 0) {
+        tiendaId     = tienda.rows[0].id;
+        nombreTienda = tienda.rows[0].nombre;
+      }
+    }
+
     // Generar token JWT
     const token = jwt.sign(
-      { id: usuario.id, email: usuario.email, rol: usuario.rol },
+      { id: usuario.id, email: usuario.email, rol: usuario.rol, tienda_id: tiendaId },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     );
@@ -81,10 +90,12 @@ const login = async (req, res) => {
       mensaje: 'Inicio de sesión exitoso',
       token,
       usuario: {
-        id:     usuario.id,
-        nombre: usuario.nombre,
-        email:  usuario.email,
-        rol:    usuario.rol,
+        id:      usuario.id,
+        nombre:  usuario.nombre,
+        email:   usuario.email,
+        rol:     usuario.rol,
+        tienda_id:   tiendaId,
+        tienda:      nombreTienda,
       }
     });
   } catch (error) {
