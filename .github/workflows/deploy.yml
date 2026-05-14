@@ -3,49 +3,44 @@ name: Deploy BiteBytes
 on:
   push:
     branches:
-      - main
+      - main   # Se ejecuta cuando haces commit/push a la rama main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      # 1. Descargar el repo
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-    - name: Setup Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.19.0'
+      # 2. Configurar acceso SSH a la VM
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-    - name: Build frontend
-      working-directory: bitebytes_app
-      run: flutter build web
+      # 3. Ejecutar despliegue en la VM
+      - name: Deploy en VM
+        run: |
+          ssh adminc@172.16.13.105 << 'EOF'
+            cd ~/BiteBytes
 
-    - name: Setup SSH
-      uses: webfactory/ssh-agent@v0.7.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+            # Actualizar código
+            git pull origin main
 
-    - name: Deploy to VM
-      run: |
-      ssh adminc@172.16.13.105 << 'EOF'
-        cd ~/BiteBytes
+            # --- FRONTEND ---
+            cd bitebytes_app
+            flutter pub get
+            flutter build web
+            sudo cp -r build/web/* /usr/share/nginx/html/
+            sudo systemctl restart nginx
 
-        # Actualizar código
-        git pull origin main
+            # --- BACKEND ---
+            cd ../backend
+            npm install --production
+            pm2 restart bitebytes-backend
 
-        # Frontend
-        cd bitebytes_app
-        flutter pub get
-        flutter build web
-        sudo cp -r build/web/* /usr/share/nginx/html/
-        sudo systemctl restart nginx
-
-        # Backend
-        cd ../backend
-        npm install --production
-        pm2 restart bitebytes-backend
-
-        # Migraciones (si hay cambios en la base)
-        npm run migrate || true
-      EOF
+            # --- MIGRACIONES (si cambias la base) ---
+            npm run migrate || true
+          EOF
