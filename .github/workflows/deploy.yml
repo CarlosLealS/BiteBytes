@@ -3,44 +3,64 @@ name: Deploy BiteBytes
 on:
   push:
     branches:
-      - main   # Se ejecuta cuando haces commit/push a la rama main
+      - main
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
-      # 1. Descargar el repo
+      # Descargar el repositorio
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      # 2. Configurar acceso SSH a la VM
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      # 3. Ejecutar despliegue en la VM
-      - name: Deploy en VM
+      # Desplegar aplicación
+      - name: Deploy BiteBytes
         run: |
-          ssh adminc@172.16.13.105 << 'EOF'
-            cd ~/BiteBytes
+          set -e
 
-            # Actualizar código
-            git pull origin main
+          echo "===== Actualizando proyecto ====="
 
-            # --- FRONTEND ---
-            cd bitebytes_app
-            flutter pub get
-            flutter build web
-            sudo cp -r build/web/* /usr/share/nginx/html/
-            sudo systemctl restart nginx
+          # Crear carpeta si no existe
+          mkdir -p ~/BiteBytes
 
-            # --- BACKEND ---
-            cd ../backend
-            npm install --production
-            pm2 restart bitebytes-backend
+          # Ir al proyecto
+          cd ~/BiteBytes
 
-            # --- MIGRACIONES (si cambias la base) ---
-            npm run migrate || true
-          EOF
+          # Clonar si no existe
+          if [ ! -d ".git" ]; then
+            git clone https://github.com/CarlosLealS/BiteBytes .
+          fi
+
+          # Actualizar código
+          git fetch origin
+          git reset --hard origin/main
+
+          echo "===== FRONTEND ====="
+
+          cd bitebytes_app
+
+          flutter pub get
+          flutter build web
+
+          echo "===== Publicando frontend ====="
+
+          sudo rm -rf /usr/share/nginx/html/*
+          sudo cp -r build/web/* /usr/share/nginx/html/
+
+          sudo systemctl restart nginx
+
+          echo "===== BACKEND ====="
+
+          cd ../backend
+
+          npm install --production
+
+          # Reiniciar backend con PM2
+          pm2 restart bitebytes-backend || pm2 start index.js --name bitebytes-backend
+
+          echo "===== Migraciones ====="
+
+          npm run migrate || true
+
+          echo "===== Deploy completado ====="
