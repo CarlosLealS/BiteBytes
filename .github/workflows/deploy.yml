@@ -15,11 +15,11 @@ jobs:
 
       - name: Deploy containers
         run: |
-          cd ~/BiteBytes
+          cd ~/BITEBYTES
 
           git fetch origin
           git reset --hard origin/main
 
-          /usr/local/bin/podman-compose down
+          podman-compose down
 
-          /usr/local/bin/podman-compose up -d --build
+          podman-compose up -d --build

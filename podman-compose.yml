@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+
+  frontend:
+    build:
+      context: ./bitebytes_app
+    container_name: bitebytes-frontend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    container_name: bitebytes-backend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
