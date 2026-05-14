@@ -4,7 +4,7 @@ const passport = require('passport');
 const jwt      = require('jsonwebtoken');
 const { registrar, login } = require('../controllers/authController');
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:4000';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 
 router.post('/registro', registrar);
 router.post('/login', login);
