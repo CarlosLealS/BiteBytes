@@ -10,57 +10,16 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # Descargar el repositorio
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      # Desplegar aplicación
-      - name: Deploy BiteBytes
+      - name: Deploy containers
         run: |
-          set -e
-
-          echo "===== Actualizando proyecto ====="
-
-          # Crear carpeta si no existe
-          mkdir -p ~/BiteBytes
-
-          # Ir al proyecto
           cd ~/BiteBytes
 
-          # Clonar si no existe
-          if [ ! -d ".git" ]; then
-            git clone https://github.com/CarlosLealS/BiteBytes .
-          fi
-
-          # Actualizar código
           git fetch origin
           git reset --hard origin/main
 
-          echo "===== FRONTEND ====="
+          /usr/local/bin/podman-compose down
 
-          cd bitebytes_app
-
-          flutter pub get
-          flutter build web
-
-          echo "===== Publicando frontend ====="
-
-          sudo rm -rf /usr/share/nginx/html/*
-          sudo cp -r build/web/* /usr/share/nginx/html/
-
-          sudo systemctl restart nginx
-
-          echo "===== BACKEND ====="
-
-          cd ../backend
-
-          npm install --production
-
-          # Reiniciar backend con PM2
-          pm2 restart bitebytes-backend || pm2 start index.js --name bitebytes-backend
-
-          echo "===== Migraciones ====="
-
-          npm run migrate || true
-
-          echo "===== Deploy completado ====="
+          /usr/local/bin/podman-compose up -d --build
