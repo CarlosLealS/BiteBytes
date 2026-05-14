@@ -8,7 +8,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
@@ -19,6 +18,7 @@ jobs:
         flutter-version: '3.19.0'
 
     - name: Build frontend
+      working-directory: bitebytes_app
       run: flutter build web
 
     - name: Setup SSH
@@ -28,5 +28,5 @@ jobs:
 
     - name: Deploy to VM
       run: |
-        scp -o StrictHostKeyChecking=no -r build/web/* adminc@172.16.13.105:/usr/share/nginx/html/
+        scp -o StrictHostKeyChecking=no -r bitebytes_app/build/web/* adminc@172.16.13.105:/usr/share/nginx/html/
         ssh -o StrictHostKeyChecking=no adminc@172.16.13.105 "sudo systemctl restart nginx && sudo systemctl restart bitebytes-backend"
