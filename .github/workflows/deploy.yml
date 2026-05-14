@@ -28,5 +28,24 @@ jobs:
 
     - name: Deploy to VM
       run: |
-        scp -o StrictHostKeyChecking=no -r bitebytes_app/build/web/* adminc@172.16.13.105:/usr/share/nginx/html/
-        ssh -o StrictHostKeyChecking=no adminc@172.16.13.105 "sudo systemctl restart nginx && sudo systemctl restart bitebytes-backend"
+      ssh adminc@172.16.13.105 << 'EOF'
+        cd ~/BiteBytes
+
+        # Actualizar código
+        git pull origin main
+
+        # Frontend
+        cd bitebytes_app
+        flutter pub get
+        flutter build web
+        sudo cp -r build/web/* /usr/share/nginx/html/
+        sudo systemctl restart nginx
+
+        # Backend
+        cd ../backend
+        npm install --production
+        pm2 restart bitebytes-backend
+
+        # Migraciones (si hay cambios en la base)
+        npm run migrate || true
+      EOF
