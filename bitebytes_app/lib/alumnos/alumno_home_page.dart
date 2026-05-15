@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 const _kAzul   = Color(0xFF0B1F5C);
 const _kDorado = Color(0xFFF5A623);
-const _kBase   = 'http://localhost:3000';
+const _kBase   = 'http://172.16.13.105:3000';
 
 class AlumnoHomePage extends StatefulWidget {
   final Map<String, dynamic> usuario;

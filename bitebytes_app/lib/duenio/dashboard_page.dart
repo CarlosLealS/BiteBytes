@@ -23,7 +23,7 @@ class _DashboardPageState extends State<DashboardPage> {
   List<Map<String, dynamic>> _trabajadores = [];
   List<Map<String, dynamic>> _publicaciones = [];
 
-  static const String _baseUrl = 'http://localhost:3000';
+  static const String _baseUrl = 'http://172.16.13.105:3000';
 
   @override
   void initState() {

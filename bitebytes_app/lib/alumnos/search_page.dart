@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 
 const _kAzul    = Color(0xFF001455);
 const _kNaranja = Color(0xFFE8751A);
-const _kBase    = 'http://localhost:3000';
+const _kBase    = 'http://172.16.13.105:3000';
 
 const double _mapAncho = 1600.0;
 const double _mapAlto  = 900.0;

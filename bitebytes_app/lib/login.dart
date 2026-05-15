@@ -21,7 +21,7 @@ class _LoginPageState extends State<LoginPage> {
 
   static const String _apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:3000',
+    defaultValue: 'http://172.16.13.105:3000',
   );
   static const String _googleLoginUrl = '$_apiBaseUrl/api/auth/google';
 
