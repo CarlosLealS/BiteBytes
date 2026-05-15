@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:html' as html;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'alumnos/search_page.dart';
+import 'alumnos/alumno_home_page.dart';
 import 'duenio/duenio_shell.dart';
 
 class LoginPage extends StatefulWidget {
@@ -69,7 +69,7 @@ class _LoginPageState extends State<LoginPage> {
           // Alumno o visitante → ir al mapa
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const SearchPage()),
+            MaterialPageRoute(builder: (_) => const AlumnoHomePage()),
           );
         }
       } else {
