@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:html' as html;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'search_page.dart';
+import 'alumnos/search_page.dart';
 import 'duenio/duenio_shell.dart';
 
 class LoginPage extends StatefulWidget {

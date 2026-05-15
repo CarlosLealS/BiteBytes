@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'search_page.dart';
+import 'alumnos/search_page.dart';
 
 class Promocion {
   final String nombre;

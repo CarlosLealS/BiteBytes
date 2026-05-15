@@ -19,6 +19,7 @@ app.use(passport.initialize());
 // Rutas
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api', require('./routes/productosRoutes'));
+app.use('/api', require('./routes/alumnoRoutes')); 
 app.use('/api', require('./routes/publicacionesRoutes'));
 
 
