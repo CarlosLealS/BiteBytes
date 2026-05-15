@@ -21,7 +21,7 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api', require('./routes/productosRoutes'));
 app.use('/api', require('./routes/alumnoRoutes')); 
 app.use('/api', require('./routes/publicacionesRoutes'));
-
+app.use('/api', require('./routes/menuCasinoRoutes'));
 
 // Servir imágenes estáticas
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

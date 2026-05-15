@@ -6,9 +6,10 @@ import 'publicaciones_page.dart';
 import 'trabajadores_page.dart';
 import 'valoraciones_page.dart';
 import 'capacitacion_page.dart';
+import 'menu_casino_page.dart';
 
-const kAzul = Color(0xFF0B1F5C);
-const kDorado = Color(0xFFF5A623);
+const kAzul      = Color(0xFF0B1F5C);
+const kDorado    = Color(0xFFF5A623);
 const kAzulClaro = Color(0xFF1A3080);
 
 class DuenioShell extends StatefulWidget {
@@ -22,26 +23,42 @@ class DuenioShell extends StatefulWidget {
 class _DuenioShellState extends State<DuenioShell> {
   int _paginaActual = 0;
 
-  final List<_NavItem> _navItems = [
-    _NavItem(icono: Icons.dashboard_outlined,      label: 'Dashboard'),
-    _NavItem(icono: Icons.store_outlined,           label: 'Mi tienda'),
-    _NavItem(icono: Icons.inventory_2_outlined,     label: 'Productos'),
-    _NavItem(icono: Icons.campaign_outlined,        label: 'Publicaciones'),
-    _NavItem(icono: Icons.people_outline,           label: 'Trabajadores'),
-    _NavItem(icono: Icons.star_border_rounded,      label: 'Valoraciones'),
-    _NavItem(icono: Icons.school_outlined,          label: 'Capacitación'),
-  ];
+  bool get _esCasino => widget.usuario['es_casino'] == true || widget.usuario['es_casino'] == 'true';
+
+  List<_NavItem> get _navItems {
+    final items = [
+      _NavItem(icono: Icons.dashboard_outlined,   label: 'Dashboard',     seccion: 'General'),
+      _NavItem(icono: Icons.store_outlined,        label: 'Mi tienda',     seccion: 'General'),
+      _NavItem(icono: Icons.inventory_2_outlined,  label: 'Productos',     seccion: 'Gestión'),
+      _NavItem(icono: Icons.campaign_outlined,     label: 'Publicaciones', seccion: 'Gestión'),
+      _NavItem(icono: Icons.people_outline,        label: 'Trabajadores',  seccion: 'Gestión'),
+    ];
+
+    // Solo casinos ven el apartado de Menú Casino
+    if (_esCasino) {
+      items.add(_NavItem(icono: Icons.restaurant_menu_outlined, label: 'Menú Casino', seccion: 'Gestión'));
+    }
+
+    items.addAll([
+      _NavItem(icono: Icons.star_border_rounded, label: 'Valoraciones', seccion: 'Análisis'),
+      _NavItem(icono: Icons.school_outlined,     label: 'Capacitación', seccion: 'Ayuda'),
+    ]);
+
+    return items;
+  }
 
   Widget _paginaActiva() {
-    switch (_paginaActual) {
-      case 0: return DashboardPage(usuario: widget.usuario);
-      case 1: return const TiendaPage();
-      case 2: return ProductosPage(usuario: widget.usuario);
-      case 3: return PublicacionesPage(usuario: widget.usuario);
-      case 4: return const TrabajadoresPage();
-      case 5: return const ValoracionesPage();
-      case 6: return const CapacitacionPage();
-      default: return DashboardPage(usuario: widget.usuario);
+    final label = _navItems[_paginaActual].label;
+    switch (label) {
+      case 'Dashboard':     return DashboardPage(usuario: widget.usuario);
+      case 'Mi tienda':     return const TiendaPage();
+      case 'Productos':     return ProductosPage(usuario: widget.usuario);
+      case 'Publicaciones': return PublicacionesPage(usuario: widget.usuario);
+      case 'Trabajadores':  return const TrabajadoresPage();
+      case 'Menú Casino':   return MenuCasinoPage(usuario: widget.usuario);
+      case 'Valoraciones':  return const ValoracionesPage();
+      case 'Capacitación':  return const CapacitacionPage();
+      default:              return DashboardPage(usuario: widget.usuario);
     }
   }
 
@@ -55,6 +72,7 @@ class _DuenioShellState extends State<DuenioShell> {
             navItems: _navItems,
             paginaActual: _paginaActual,
             usuario: widget.usuario,
+            esCasino: _esCasino,
             onItemTap: (i) => setState(() => _paginaActual = i),
           ),
           Expanded(
@@ -63,6 +81,7 @@ class _DuenioShellState extends State<DuenioShell> {
                 _Topbar(
                   titulo: _navItems[_paginaActual].label,
                   usuario: widget.usuario,
+                  esCasino: _esCasino,
                 ),
                 Expanded(child: _paginaActiva()),
               ],
@@ -74,41 +93,54 @@ class _DuenioShellState extends State<DuenioShell> {
   }
 }
 
+// ─── Sidebar ───────────────────────────────────────────────────────────────────
+
 class _Sidebar extends StatelessWidget {
   final List<_NavItem> navItems;
   final int paginaActual;
   final Map<String, dynamic> usuario;
+  final bool esCasino;
   final ValueChanged<int> onItemTap;
 
   const _Sidebar({
     required this.navItems,
     required this.paginaActual,
     required this.usuario,
+    required this.esCasino,
     required this.onItemTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Agrupar items por sección
+    final secciones = <String>[];
+    for (final item in navItems) {
+      if (!secciones.contains(item.seccion)) secciones.add(item.seccion);
+    }
+
     return Container(
       width: 210,
       color: kAzul,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SidebarLogo(nombreTienda: usuario['tienda'] ?? 'Mi Tienda'),
+          _SidebarLogo(
+            nombreTienda: usuario['tienda'] ?? 'Mi Tienda',
+            esCasino: esCasino,
+          ),
           const SizedBox(height: 8),
-          _seccion('General'),
-          _item(0),
-          _item(1),
-          _seccion('Gestión'),
-          _item(2),
-          _item(3),
-          _item(4),
-          _seccion('Análisis'),
-          _item(5),
-          _seccion('Ayuda'),
-          _item(6),
-          const Spacer(),
+          Expanded(
+            child: ListView(
+              children: [
+                for (final seccion in secciones) ...[
+                  _seccionLabel(seccion),
+                  for (int i = 0; i < navItems.length; i++)
+                    if (navItems[i].seccion == seccion)
+                      _item(i),
+                ],
+              ],
+            ),
+          ),
           const Divider(color: Colors.white12, thickness: 0.5, height: 1),
           _SidebarFooter(usuario: usuario),
         ],
@@ -116,7 +148,7 @@ class _Sidebar extends StatelessWidget {
     );
   }
 
-  Widget _seccion(String label) => Padding(
+  Widget _seccionLabel(String label) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
         child: Text(
           label.toUpperCase(),
@@ -130,8 +162,10 @@ class _Sidebar extends StatelessWidget {
       );
 
   Widget _item(int index) {
-    final item = navItems[index];
+    final item   = navItems[index];
     final activo = paginaActual == index;
+    final esCasinoItem = item.label == 'Menú Casino';
+
     return InkWell(
       onTap: () => onItemTap(index),
       child: AnimatedContainer(
@@ -149,16 +183,37 @@ class _Sidebar extends StatelessWidget {
         child: Row(
           children: [
             Icon(item.icono, size: 18,
-                color: activo ? kDorado : Colors.white54),
+                color: activo
+                    ? kDorado
+                    : esCasinoItem
+                        ? Colors.white70
+                        : Colors.white54),
             const SizedBox(width: 10),
-            Text(
-              item.label,
-              style: TextStyle(
-                color: activo ? kDorado : Colors.white60,
-                fontSize: 13,
-                fontWeight: activo ? FontWeight.w500 : FontWeight.w400,
+            Expanded(
+              child: Text(
+                item.label,
+                style: TextStyle(
+                  color: activo
+                      ? kDorado
+                      : esCasinoItem
+                          ? Colors.white70
+                          : Colors.white60,
+                  fontSize: 13,
+                  fontWeight: activo ? FontWeight.w500 : FontWeight.w400,
+                ),
               ),
             ),
+            // Badge especial para Menú Casino
+            if (esCasinoItem && !activo)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: kDorado.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('Casino',
+                    style: TextStyle(color: kDorado, fontSize: 9, fontWeight: FontWeight.w500)),
+              ),
           ],
         ),
       ),
@@ -168,7 +223,8 @@ class _Sidebar extends StatelessWidget {
 
 class _SidebarLogo extends StatelessWidget {
   final String nombreTienda;
-  const _SidebarLogo({required this.nombreTienda});
+  final bool esCasino;
+  const _SidebarLogo({required this.nombreTienda, required this.esCasino});
 
   @override
   Widget build(BuildContext context) {
@@ -180,20 +236,34 @@ class _SidebarLogo extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'BiteBytes',
-            style: TextStyle(
-              color: kDorado,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            nombreTienda,
-            style: const TextStyle(color: Colors.white38, fontSize: 11),
-            overflow: TextOverflow.ellipsis,
+          const Text('BiteBytes',
+              style: TextStyle(
+                color: kDorado,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
+              )),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: Text(nombreTienda,
+                    style: const TextStyle(color: Colors.white38, fontSize: 11),
+                    overflow: TextOverflow.ellipsis),
+              ),
+              if (esCasino) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: kDorado.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text('Casino',
+                      style: TextStyle(color: kDorado, fontSize: 9, fontWeight: FontWeight.w500)),
+                ),
+              ],
+            ],
           ),
         ],
       ),
@@ -216,21 +286,21 @@ class _SidebarFooter extends StatelessWidget {
             backgroundColor: kDorado.withOpacity(0.2),
             child: Text(
               (usuario['nombre'] as String? ?? 'U')[0].toUpperCase(),
-              style: const TextStyle(color: kDorado, fontSize: 13, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                  color: kDorado, fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              usuario['nombre'] ?? 'Usuario',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: Text(usuario['nombre'] ?? 'Usuario',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                overflow: TextOverflow.ellipsis),
           ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white38, size: 18),
             tooltip: 'Cerrar sesión',
-            onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false),
+            onPressed: () =>
+                Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false),
           ),
         ],
       ),
@@ -238,10 +308,14 @@ class _SidebarFooter extends StatelessWidget {
   }
 }
 
+// ─── Topbar ────────────────────────────────────────────────────────────────────
+
 class _Topbar extends StatelessWidget {
   final String titulo;
   final Map<String, dynamic> usuario;
-  const _Topbar({required this.titulo, required this.usuario});
+  final bool esCasino;
+
+  const _Topbar({required this.titulo, required this.usuario, required this.esCasino});
 
   @override
   Widget build(BuildContext context) {
@@ -256,22 +330,34 @@ class _Topbar extends StatelessWidget {
         children: [
           Text(titulo,
               style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF111827),
-              )),
+                  fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF111827))),
           const Spacer(),
-          Text(
-            usuario['email'] ?? '',
-            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-          ),
+          if (esCasino)
+            Container(
+              margin: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: kAzul.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.restaurant, size: 13, color: kAzul),
+                  SizedBox(width: 4),
+                  Text('Casino', style: TextStyle(fontSize: 11, color: kAzul, fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+          Text(usuario['email'] ?? '',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
           const SizedBox(width: 12),
           CircleAvatar(
             radius: 15,
             backgroundColor: kAzul,
             child: Text(
               (usuario['nombre'] as String? ?? 'U')[0].toUpperCase(),
-              style: const TextStyle(color: kDorado, fontSize: 12, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                  color: kDorado, fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -280,8 +366,11 @@ class _Topbar extends StatelessWidget {
   }
 }
 
+// ─── Modelo NavItem ────────────────────────────────────────────────────────────
+
 class _NavItem {
   final IconData icono;
   final String label;
-  const _NavItem({required this.icono, required this.label});
+  final String seccion;
+  const _NavItem({required this.icono, required this.label, required this.seccion});
 }

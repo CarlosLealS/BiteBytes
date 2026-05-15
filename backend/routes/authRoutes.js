@@ -2,9 +2,10 @@ const express  = require('express');
 const router   = express.Router();
 const passport = require('passport');
 const jwt      = require('jsonwebtoken');
+const pool     = require('../config/db');
 const { registrar, login } = require('../controllers/authController');
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:4000';
 
 router.post('/registro', registrar);
 router.post('/login', login);
@@ -17,13 +18,43 @@ router.get('/google', passport.authenticate('google', {
 
 router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/api/auth/google/fallo' }),
-  (req, res) => {
-    const token = jwt.sign(
-      { id: req.user.id, email: req.user.email, rol: req.user.rol },
-      process.env.JWT_SECRET,
-      { expiresIn: '8h' }
-    );
-    res.redirect(`${FRONTEND_URL}?token=${token}`);
+  async (req, res) => {
+    try {
+      // Buscar tienda del usuario si es dueño
+      let tiendaId     = null;
+      let esCasino     = false;
+
+      if (req.user.rol === 'duenio_tienda') {
+        const tienda = await pool.query(
+          `SELECT t.id, tt.es_casino
+           FROM tiendas t
+           JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
+           WHERE t.duenio_id = $1 AND t.activa = true LIMIT 1`,
+          [req.user.id]
+        );
+        if (tienda.rows.length > 0) {
+          tiendaId = tienda.rows[0].id;
+          esCasino = tienda.rows[0].es_casino;
+        }
+      }
+
+      const token = jwt.sign(
+        {
+          id:        req.user.id,
+          email:     req.user.email,
+          rol:       req.user.rol,
+          tienda_id: tiendaId,
+          es_casino: esCasino,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '8h' }
+      );
+
+      res.redirect(`${FRONTEND_URL}?token=${token}`);
+    } catch (error) {
+      console.error('Error en callback Google:', error.message);
+      res.redirect('/api/auth/google/fallo');
+    }
   }
 );
 

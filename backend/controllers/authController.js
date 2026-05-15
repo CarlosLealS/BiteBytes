@@ -64,24 +64,35 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
-    // Si es dueño de tienda, buscar su tienda
-    let tiendaId   = null;
+    // Si es dueño de tienda, buscar su tienda y si es casino
+    let tiendaId     = null;
     let nombreTienda = null;
+    let esCasino     = false;
 
     if (usuario.rol === 'duenio_tienda') {
       const tienda = await pool.query(
-        `SELECT id, nombre FROM tiendas WHERE duenio_id = $1 AND activa = true LIMIT 1`,
+        `SELECT t.id, t.nombre, tt.es_casino
+         FROM tiendas t
+         JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
+         WHERE t.duenio_id = $1 AND t.activa = true LIMIT 1`,
         [usuario.id]
       );
       if (tienda.rows.length > 0) {
         tiendaId     = tienda.rows[0].id;
         nombreTienda = tienda.rows[0].nombre;
+        esCasino     = tienda.rows[0].es_casino;
       }
     }
 
-    // Generar token JWT
+    // Generar token JWT con es_casino incluido
     const token = jwt.sign(
-      { id: usuario.id, email: usuario.email, rol: usuario.rol, tienda_id: tiendaId },
+      {
+        id:        usuario.id,
+        email:     usuario.email,
+        rol:       usuario.rol,
+        tienda_id: tiendaId,
+        es_casino: esCasino,
+      },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     );
@@ -90,12 +101,13 @@ const login = async (req, res) => {
       mensaje: 'Inicio de sesión exitoso',
       token,
       usuario: {
-        id:      usuario.id,
-        nombre:  usuario.nombre,
-        email:   usuario.email,
-        rol:     usuario.rol,
-        tienda_id:   tiendaId,
-        tienda:      nombreTienda,
+        id:        usuario.id,
+        nombre:    usuario.nombre,
+        email:     usuario.email,
+        rol:       usuario.rol,
+        tienda_id: tiendaId,
+        tienda:    nombreTienda,
+        es_casino: esCasino,
       }
     });
   } catch (error) {

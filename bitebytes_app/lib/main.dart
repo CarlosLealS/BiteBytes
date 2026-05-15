@@ -45,6 +45,7 @@ class MyApp extends StatelessWidget {
         'nombre':   payload['email']?.toString().split('@').first ?? 'Usuario',
         'rol':      payload['rol'],
         'tienda_id': payload['tienda_id'],
+        'es_casino': payload['es_casino'],
         'token':    token,
       };
 
