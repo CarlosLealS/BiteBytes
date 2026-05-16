@@ -45,19 +45,30 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
     try {
       final token   = widget.usuario['token'] ?? '';
       final headers = {'Authorization': 'Bearer $token'};
+      print('Token: $token');
+      print('Base URL: $_kBase');
+      
       final res = await Future.wait([
         http.get(Uri.parse('$_kBase/api/menu-casino/hoy'),       headers: headers),
         http.get(Uri.parse('$_kBase/api/publicaciones/activas'), headers: headers),
         http.get(Uri.parse('$_kBase/api/tiendas'),               headers: headers),
       ]);
+      
+      print('Respuestas recibidas:');
+      print('Menú Casino: ${res[0].statusCode} - ${res[0].body}');
+      print('Publicaciones: ${res[1].statusCode} - ${res[1].body}');
+      print('Tiendas: ${res[2].statusCode} - ${res[2].body}');
+      
       if (!mounted) return;
       setState(() {
         _menusCasino   = List<Map<String, dynamic>>.from(jsonDecode(res[0].body) as List? ?? []);
         _publicaciones = List<Map<String, dynamic>>.from(jsonDecode(res[1].body) as List? ?? []);
         _tiendas       = List<Map<String, dynamic>>.from(jsonDecode(res[2].body) as List? ?? []);
         _cargando      = false;
+        print('Datos cargados: menús=${_menusCasino.length}, publicaciones=${_publicaciones.length}, tiendas=${_tiendas.length}');
       });
-    } catch (_) {
+    } catch (e) {
+      print('Error cargando datos: $e');
       if (!mounted) return;
       setState(() => _cargando = false);
     }
@@ -701,10 +712,7 @@ class _MenuCasinoDetalle extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const LoginPage()),
-                    (route) => false,
-                  ),
+                  onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _kAzul,
                     foregroundColor: Colors.white,
@@ -852,6 +860,12 @@ class _CarruselPublicaciones extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('_CarruselPublicaciones: ${publicaciones.length} publicaciones');
+    for (var i = 0; i < publicaciones.length; i++) {
+      final pub = publicaciones[i];
+      print('Pub $i: ${pub['nombre']} - Tienda: ${pub['tienda_nombre']} - Imagenes: ${pub['imagenes']}');
+    }
+    
     return SizedBox(
       height: 190,
       child: ListView.separated(
@@ -871,7 +885,10 @@ class _PubCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imagenes   = pub['imagenes'] as List? ?? [];
+    print('_PubCard: imagenes recibidas = $imagenes');
     final primeraImg = imagenes.isNotEmpty ? imagenes[0]['imagen_url'] as String? : null;
+    print('_PubCard: primeraImg = $primeraImg');
+    
     final nombre     = pub['nombre'] ?? '';
     final precio     = pub['precio_oferta'];
     final tienda     = pub['tienda_nombre'] ?? '';

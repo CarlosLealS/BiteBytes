@@ -18,64 +18,6 @@ const listarTiendas = async (req, res) => {
   }
 };
 
-// GET /api/publicaciones/activas
-// Publicaciones activas, no expiradas, de tiendas NO casino
-const listarPublicacionesActivas = async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT p.*,
-              t.nombre AS tienda_nombre,
-              JSON_AGG(
-                JSON_BUILD_OBJECT('id', pi.id, 'imagen_url', pi.imagen_url, 'orden', pi.orden)
-                ORDER BY pi.orden
-              ) FILTER (WHERE pi.id IS NOT NULL) AS imagenes
-       FROM publicaciones p
-       JOIN tiendas t ON t.id = p.tienda_id
-       JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
-       LEFT JOIN publicacion_imagenes pi ON pi.publicacion_id = p.id
-       WHERE p.activa = true
-         AND tt.es_casino = false
-         AND p.publicar_en <= NOW()
-         AND (p.expira_en IS NULL OR p.expira_en > NOW())
-       GROUP BY p.id, t.nombre
-       ORDER BY p.publicar_en DESC`
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error listando publicaciones activas:', error.message);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-};
-
-// GET /api/publicaciones/casino
-// Publicaciones activas, no expiradas, de tiendas tipo casino
-const listarPublicacionesCasino = async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT p.*,
-              t.nombre AS tienda_nombre,
-              JSON_AGG(
-                JSON_BUILD_OBJECT('id', pi.id, 'imagen_url', pi.imagen_url, 'orden', pi.orden)
-                ORDER BY pi.orden
-              ) FILTER (WHERE pi.id IS NOT NULL) AS imagenes
-       FROM publicaciones p
-       JOIN tiendas t ON t.id = p.tienda_id
-       JOIN tipo_tienda tt ON t.tipo_tienda_id = tt.id
-       LEFT JOIN publicacion_imagenes pi ON pi.publicacion_id = p.id
-       WHERE p.activa = true
-         AND tt.es_casino = true
-         AND p.publicar_en <= NOW()
-         AND (p.expira_en IS NULL OR p.expira_en > NOW())
-       GROUP BY p.id, t.nombre
-       ORDER BY p.publicar_en DESC`
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error listando publicaciones casino:', error.message);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-};
-
 // GET /api/menu-casino/hoy
 // Menús de casino del día actual
 const listarMenuCasinoHoy = async (req, res) => {
@@ -146,8 +88,6 @@ const buscarProductos = async (req, res) => {
 
 module.exports = {
   listarTiendas,
-  listarPublicacionesActivas,
-  listarPublicacionesCasino,
   listarMenuCasinoHoy,
   buscarProductos,
 };

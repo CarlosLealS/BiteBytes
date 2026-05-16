@@ -36,7 +36,6 @@ const crearPublicacion = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Verificar que la tienda pertenece al dueño
     const tienda = await client.query(
       'SELECT id FROM tiendas WHERE id = $1 AND duenio_id = $2',
       [tienda_id, req.usuario.id]
@@ -46,7 +45,6 @@ const crearPublicacion = async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para esta tienda' });
     }
 
-    // Insertar publicación
     const result = await client.query(
       `INSERT INTO publicaciones (tienda_id, nombre, descripcion, precio_oferta, publicar_en, expira_en, activa)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -64,7 +62,6 @@ const crearPublicacion = async (req, res) => {
 
     const publicacion = result.rows[0];
 
-    // Insertar imágenes si hay
     if (imagenes && imagenes.length > 0) {
       for (let i = 0; i < imagenes.length; i++) {
         await client.query(
@@ -76,7 +73,6 @@ const crearPublicacion = async (req, res) => {
 
     await client.query('COMMIT');
 
-    // Retornar publicación con imágenes
     const completa = await pool.query(
       `SELECT p.*,
               JSON_AGG(
@@ -113,7 +109,6 @@ const editarPublicacion = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Verificar permiso
     const check = await client.query(
       `SELECT p.id FROM publicaciones p
        JOIN tiendas t ON t.id = p.tienda_id
@@ -125,7 +120,6 @@ const editarPublicacion = async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para editar esta publicación' });
     }
 
-    // Actualizar publicación
     await client.query(
       `UPDATE publicaciones
        SET nombre = $1, descripcion = $2, precio_oferta = $3,
@@ -134,7 +128,6 @@ const editarPublicacion = async (req, res) => {
       [nombre, descripcion || null, precio_oferta || null, publicar_en, expira_en || null, activa ?? true, id]
     );
 
-    // Reemplazar imágenes
     await client.query('DELETE FROM publicacion_imagenes WHERE publicacion_id = $1', [id]);
     if (imagenes && imagenes.length > 0) {
       for (let i = 0; i < imagenes.length; i++) {
@@ -147,7 +140,6 @@ const editarPublicacion = async (req, res) => {
 
     await client.query('COMMIT');
 
-    // Retornar publicación actualizada con imágenes
     const completa = await pool.query(
       `SELECT p.*,
               JSON_AGG(
@@ -185,7 +177,6 @@ const eliminarPublicacion = async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para eliminar esta publicación' });
     }
 
-    // Las imágenes se eliminan en cascada por la FK
     await pool.query('DELETE FROM publicaciones WHERE id = $1', [id]);
     res.json({ mensaje: 'Publicación eliminada correctamente' });
   } catch (error) {
@@ -194,8 +185,59 @@ const eliminarPublicacion = async (req, res) => {
   }
 };
 
+// GET /api/publicaciones/activas (para alumno - todas las publicaciones activas)
+const obtenerPublicacionesActivas = async (req, res) => {
+  try {
+    // Debug: ver todas las publicaciones sin filtros
+    const debug = await pool.query(
+      `SELECT p.nombre, p.activa, p.publicar_en, p.expira_en,
+              t.nombre AS tienda, t.activa AS tienda_activa,
+              p.publicar_en <= NOW() AS ya_inicio,
+              (p.expira_en IS NULL OR p.expira_en > NOW()) AS no_expirada
+       FROM publicaciones p
+       JOIN tiendas t ON t.id = p.tienda_id`
+    );
+    console.log('🔍 DEBUG todas las publicaciones:');
+    debug.rows.forEach((r, i) => {
+      console.log(`  [${i}] ${r.nombre} | tienda=${r.tienda} | activa=${r.activa} | tienda_activa=${r.tienda_activa} | ya_inicio=${r.ya_inicio} | no_expirada=${r.no_expirada}`);
+    });
+
+    const result = await pool.query(
+      `SELECT p.*,
+              t.nombre AS tienda_nombre,
+              COALESCE(
+                JSON_AGG(
+                  JSON_BUILD_OBJECT('id', pi.id, 'imagen_url', pi.imagen_url, 'orden', pi.orden)
+                  ORDER BY pi.orden
+                ) FILTER (WHERE pi.id IS NOT NULL),
+                '[]'::json
+              ) AS imagenes
+       FROM publicaciones p
+       JOIN tiendas t ON t.id = p.tienda_id
+       LEFT JOIN publicacion_imagenes pi ON pi.publicacion_id = p.id
+       WHERE p.activa = true
+         AND t.activa = true
+         AND p.publicar_en <= NOW()
+         AND (p.expira_en IS NULL OR p.expira_en > NOW())
+       GROUP BY p.id, t.id
+       ORDER BY p.publicar_en DESC`
+    );
+
+    console.log(`✅ Publicaciones ACTIVAS devueltas: ${result.rows.length}`);
+    result.rows.forEach((pub, i) => {
+      console.log(`  [${i}] ${pub.nombre} (${pub.tienda_nombre}) - ${pub.imagenes.length} imágenes`);
+    });
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('❌ Error obteniendo publicaciones activas:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   listarPublicaciones,
+  obtenerPublicacionesActivas,
   crearPublicacion,
   editarPublicacion,
   eliminarPublicacion,
