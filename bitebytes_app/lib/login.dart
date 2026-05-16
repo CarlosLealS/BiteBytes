@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:html' as html;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'alumnos/search_page.dart';
+import 'package:bitebytes_app/config/env.dart';
+import 'alumnos/alumno_home_page.dart';
 import 'duenio/duenio_shell.dart';
 
 class LoginPage extends StatefulWidget {
@@ -19,11 +20,64 @@ class _LoginPageState extends State<LoginPage> {
   bool _verPassword   = false;
   String? _error;
 
-  static const String _apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://172.16.13.105:3000',
-  );
-  static const String _googleLoginUrl = '$_apiBaseUrl/api/auth/google';
+  static String get _apiBaseUrl    => Env.apiUrl;
+  static String get _googleLoginUrl => '${Env.apiUrl}/api/auth/google';
+
+  @override
+  void initState() {
+    super.initState();
+    _verificarTokenGoogle();
+  }
+
+  // Detecta si Google redirigió con ?token=... en la URL
+  void _verificarTokenGoogle() {
+    final t = Uri.base.queryParameters['token'];
+    if (t != null && t.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _procesarToken(t);
+      });
+    }
+  }
+
+  void _procesarToken(String token) {
+    try {
+      final parts      = token.split('.');
+      if (parts.length != 3) return;
+      final normalized = base64Url.normalize(parts[1]);
+      final decoded    = jsonDecode(utf8.decode(base64Url.decode(normalized)))
+                         as Map<String, dynamic>;
+
+      final usuario = {
+        'id':        decoded['id'],
+        'email':     decoded['email'],
+        'nombre':    decoded['email']?.toString().split('@').first ?? 'Usuario',
+        'rol':       decoded['rol'],
+        'tienda_id': decoded['tienda_id'],
+        'es_casino': decoded['es_casino'],
+        'token':     token,
+      };
+
+      _navegarSegunRol(usuario);
+    } catch (_) {
+      // Token inválido, se queda en LoginPage
+    }
+  }
+
+  void _navegarSegunRol(Map<String, dynamic> usuario) {
+    if (usuario['rol'] == 'duenio_tienda' ||
+        usuario['rol'] == 'admin' ||
+        usuario['rol'] == 'super_admin') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => DuenioShell(usuario: usuario)),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => AlumnoHomePage(usuario: usuario)),
+      );
+    }
+  }
 
   void _loginConGoogle() {
     html.window.location.href = _googleLoginUrl;
@@ -54,24 +108,7 @@ class _LoginPageState extends State<LoginPage> {
       if (response.statusCode == 200) {
         final usuario = data['usuario'] as Map<String, dynamic>;
         usuario['token'] = data['token'];
-
-        // Navegar según rol
-        if (usuario['rol'] == 'duenio_tienda' ||
-            usuario['rol'] == 'admin' ||
-            usuario['rol'] == 'super_admin') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => DuenioShell(usuario: usuario),
-            ),
-          );
-        } else {
-          // Alumno o visitante → ir al mapa
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const SearchPage()),
-          );
-        }
+        _navegarSegunRol(usuario);
       } else {
         setState(() => _error = data['error'] ?? 'Error al iniciar sesión');
       }
@@ -126,7 +163,8 @@ class _LoginPageState extends State<LoginPage> {
                       controller: _emailCtrl,
                       keyboardType: TextInputType.emailAddress,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _inputDecoration('Correo electrónico', Icons.email_outlined),
+                      decoration: _inputDecoration(
+                          'Correo electrónico', Icons.email_outlined),
                     ),
                     const SizedBox(height: 12),
 
@@ -141,11 +179,14 @@ class _LoginPageState extends State<LoginPage> {
                         Icons.lock_outline,
                         sufijo: IconButton(
                           icon: Icon(
-                            _verPassword ? Icons.visibility_off : Icons.visibility,
+                            _verPassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                             color: Colors.white54,
                             size: 20,
                           ),
-                          onPressed: () => setState(() => _verPassword = !_verPassword),
+                          onPressed: () =>
+                              setState(() => _verPassword = !_verPassword),
                         ),
                       ),
                     ),
@@ -154,19 +195,23 @@ class _LoginPageState extends State<LoginPage> {
                     if (_error != null) ...[
                       const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
                           color: Colors.red.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.shade300, width: 0.5),
+                          border: Border.all(
+                              color: Colors.red.shade300, width: 0.5),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                            const Icon(Icons.error_outline,
+                                color: Colors.red, size: 16),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(_error!,
-                                  style: const TextStyle(color: Colors.red, fontSize: 13)),
+                                  style: const TextStyle(
+                                      color: Colors.red, fontSize: 13)),
                             ),
                           ],
                         ),
@@ -195,20 +240,23 @@ class _LoginPageState extends State<LoginPage> {
                                     strokeWidth: 2, color: Colors.white))
                             : const Text('Iniciar sesión',
                                 style: TextStyle(
-                                    fontSize: 16, fontWeight: FontWeight.w600)),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600)),
                       ),
                     ),
 
                     const SizedBox(height: 16),
 
                     // Divisor
-                    Row(children: [
-                      const Expanded(child: Divider(color: Colors.white24)),
-                      const Padding(
+                    const Row(children: [
+                      Expanded(child: Divider(color: Colors.white24)),
+                      Padding(
                         padding: EdgeInsets.symmetric(horizontal: 12),
-                        child: Text('o', style: TextStyle(color: Colors.white38, fontSize: 13)),
+                        child: Text('o',
+                            style: TextStyle(
+                                color: Colors.white38, fontSize: 13)),
                       ),
-                      const Expanded(child: Divider(color: Colors.white24)),
+                      Expanded(child: Divider(color: Colors.white24)),
                     ]),
 
                     const SizedBox(height: 16),
@@ -219,7 +267,8 @@ class _LoginPageState extends State<LoginPage> {
                       height: 52,
                       child: ElevatedButton.icon(
                         onPressed: _loginConGoogle,
-                        icon: Image.asset('assets/google_logo.png', height: 24, width: 24),
+                        icon: Image.asset('assets/google_logo.png',
+                            height: 24, width: 24),
                         label: const Text(
                           'Continuar con Google UCN',
                           style: TextStyle(
@@ -252,7 +301,8 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  InputDecoration _inputDecoration(String label, IconData icono, {Widget? sufijo}) {
+  InputDecoration _inputDecoration(String label, IconData icono,
+      {Widget? sufijo}) {
     return InputDecoration(
       labelText: label,
       labelStyle: const TextStyle(color: Colors.white60),
@@ -266,9 +316,11 @@ class _LoginPageState extends State<LoginPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFF5A623), width: 1.5),
+        borderSide:
+            const BorderSide(color: Color(0xFFF5A623), width: 1.5),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 }

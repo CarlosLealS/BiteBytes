@@ -5,10 +5,11 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:bitebytes_app/config/env.dart';
 
 const _kAzul   = Color(0xFF0B1F5C);
 const _kDorado = Color(0xFFF5A623);
-const _kBase   = 'http://172.16.13.105:3000';
+final _kBase   = Env.apiUrl;
 
 class ProductosPage extends StatefulWidget {
   final Map<String, dynamic> usuario;

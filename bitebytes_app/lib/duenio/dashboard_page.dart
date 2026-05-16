@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:bitebytes_app/config/env.dart';
 
 const kAzul = Color(0xFF0B1F5C);
 const kDorado = Color(0xFFF5A623);
@@ -23,7 +24,7 @@ class _DashboardPageState extends State<DashboardPage> {
   List<Map<String, dynamic>> _trabajadores = [];
   List<Map<String, dynamic>> _publicaciones = [];
 
-  static const String _baseUrl = 'http://172.16.13.105:3000';
+  static final String _baseUrl = Env.apiUrl;
 
   @override
   void initState() {

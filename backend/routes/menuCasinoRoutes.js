@@ -1,29 +1,27 @@
 const express = require('express');
 const router  = express.Router();
-const { verificarToken: auth } = require('../middleware/Authmiddleware');
-const upload  = require('../middleware/upload');
+const { verificarToken, soloRoles } = require('../middleware/Authmiddleware');
 const {
   listarMenuCasinoHoy,
   listarMenusCasino,
   crearMenuCasino,
   editarMenuCasino,
   eliminarMenuCasino,
-  agregarPlato,
-  editarPlato,
-  eliminarPlato,
+  crearResenia,
 } = require('../controllers/menuCasinoController');
-
-// ── Menú casino ────────────────────────────────────────────
-router.get('/hoy',                auth, listarMenuCasinoHoy);
-router.get('/tienda/:id',         auth, listarMenusCasino);
-router.post('/',                  auth, crearMenuCasino);
-router.put('/:id',                auth, editarMenuCasino);
-router.delete('/:id',             auth, eliminarMenuCasino);
-
-// ── Platos (sub-recurso) ───────────────────────────────────
-// La imagen es opcional → upload.single('imagen') la maneja si viene
-router.post('/:menuId/platos',          auth, upload.single('imagen'), agregarPlato);
-router.put('/platos/:platoId',          auth, upload.single('imagen'), editarPlato);
-router.delete('/platos/:platoId',       auth, eliminarPlato);
-
+ 
+const soloDuenio = [verificarToken, soloRoles('duenio_tienda', 'admin', 'super_admin')];
+ 
+// Público — para alumnos
+router.get('/menu-casino/hoy', listarMenuCasinoHoy);
+ 
+// Solo dueño casino
+router.get('/menu-casino/tienda/:id', ...soloDuenio, listarMenusCasino);
+router.post('/menu-casino',           ...soloDuenio, crearMenuCasino);
+router.put('/menu-casino/:id',        ...soloDuenio, editarMenuCasino);
+router.delete('/menu-casino/:id',     ...soloDuenio, eliminarMenuCasino);
+ 
+// Valoraciones de platos — cualquier usuario autenticado
+router.post('/menu-casino/platos/:id/resenias', verificarToken, crearResenia);
+ 
 module.exports = router;

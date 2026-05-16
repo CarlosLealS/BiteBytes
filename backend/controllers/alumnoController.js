@@ -80,17 +80,32 @@ const listarPublicacionesCasino = async (req, res) => {
 // Menús de casino del día actual
 const listarMenuCasinoHoy = async (req, res) => {
   try {
-    const result = await pool.query(
+    const menus = await pool.query(
       `SELECT mc.*, t.nombre AS tienda_nombre
        FROM menu_casino mc
        JOIN tiendas t ON t.id = mc.tienda_id
-       WHERE mc.fecha = CURRENT_DATE
-         AND t.activa = true
+       WHERE mc.fecha = CURRENT_DATE AND t.activa = true
        ORDER BY t.nombre`
     );
-    res.json(result.rows);
+
+    const result = await Promise.all(menus.rows.map(async (menu) => {
+      const platos = await pool.query(
+        `SELECT p.*,
+                ROUND(AVG(r.calificacion)::numeric, 1) AS valoracion_media,
+                COUNT(r.id) AS total_resenias
+         FROM menu_casino_platos p
+         LEFT JOIN resenias_platos r ON r.plato_id = p.id
+         WHERE p.menu_id = $1
+         GROUP BY p.id
+         ORDER BY p.orden, p.creado_en`,
+        [menu.id]
+      );
+      return { ...menu, platos: platos.rows };
+    }));
+
+    res.json(result);
   } catch (error) {
-    console.error('Error listando menú casino:', error.message);
+    console.error('Error listando menú casino hoy:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 };

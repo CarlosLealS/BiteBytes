@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:html' as html;
+import 'package:http/http.dart' as http;
+import 'package:bitebytes_app/config/env.dart';
 import 'dashboard_page.dart';
 import 'tienda_page.dart';
 import 'productos_page.dart';
@@ -7,6 +11,7 @@ import 'trabajadores_page.dart';
 import 'valoraciones_page.dart';
 import 'capacitacion_page.dart';
 import 'menu_casino_page.dart';
+import 'package:bitebytes_app/login.dart';
 
 const kAzul      = Color(0xFF0B1F5C);
 const kDorado    = Color(0xFFF5A623);
@@ -275,6 +280,40 @@ class _SidebarFooter extends StatelessWidget {
   final Map<String, dynamic> usuario;
   const _SidebarFooter({required this.usuario});
 
+  Future<void> _cerrarSesion(BuildContext context) async {
+    try {
+      final token = usuario['token'] as String? ?? '';
+      if (token.isEmpty) {
+        _limpiarURLYNavegar(context);
+        return;
+      }
+
+      await http.post(
+        Uri.parse('${Env.apiUrl}/api/auth/logout'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+    } catch (_) {
+      // Aunque haya error, procedemos a navegar
+    } finally {
+      if (context.mounted) {
+        _limpiarURLYNavegar(context);
+      }
+    }
+  }
+
+  void _limpiarURLYNavegar(BuildContext context) {
+    // Limpiar parámetros de URL para evitar redirección automática
+    html.window.history.replaceState(null, '', Uri.base.toString().split('?')[0]);
+    _navegarAlLogin(context);
+  }
+
+  void _navegarAlLogin(BuildContext context) {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -299,8 +338,7 @@ class _SidebarFooter extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white38, size: 18),
             tooltip: 'Cerrar sesión',
-            onPressed: () =>
-                Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false),
+            onPressed: () => _cerrarSesion(context),
           ),
         ],
       ),

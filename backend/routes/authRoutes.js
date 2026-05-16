@@ -3,12 +3,14 @@ const router   = express.Router();
 const passport = require('passport');
 const jwt      = require('jsonwebtoken');
 const pool     = require('../config/db');
-const { registrar, login } = require('../controllers/authController');
+const { registrar, login, logout } = require('../controllers/authController');
+const { verificarToken } = require('../middleware/Authmiddleware');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:4000';
 
 router.post('/registro', registrar);
 router.post('/login', login);
+router.post('/logout', verificarToken, logout);
 
 router.get('/google', passport.authenticate('google', {
   scope: ['profile', 'email'],

@@ -116,4 +116,22 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { registrar, login };
+// Cierre de sesión
+const logout = async (req, res) => {
+  try {
+    // Con JWT, el logout es principalmente del lado del cliente
+    // El servidor valida que el token sea válido (lo hace el middleware)
+    // y confirma el logout exitoso
+    const usuarioId = req.usuario.id;
+
+    res.json({
+      mensaje: 'Sesión cerrada correctamente',
+      usuarioId
+    });
+  } catch (error) {
+    console.error('Error en logout:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+module.exports = { registrar, login, logout };

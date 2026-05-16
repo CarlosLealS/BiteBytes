@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'dart:typed_data';
+import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:bitebytes_app/config/env.dart';
 
-// ─── Constantes ────────────────────────────────────────────────
 const _kAzul   = Color(0xFF0B1F5C);
 const _kDorado = Color(0xFFF5A623);
-const _kBase   = 'http://172.16.13.105:3000';
+final _kBase   = Env.apiUrl;
 
-// ─── Página principal ──────────────────────────────────────────
+// ─── Página principal ──────────────────────────────────────────────────────────
+
 class MenuCasinoPage extends StatefulWidget {
   final Map<String, dynamic> usuario;
   const MenuCasinoPage({super.key, required this.usuario});
@@ -22,6 +23,8 @@ class MenuCasinoPage extends StatefulWidget {
 class _MenuCasinoPageState extends State<MenuCasinoPage> {
   bool _cargando = true;
   List<Map<String, dynamic>> _menus = [];
+  DateTime _mesActual = DateTime(DateTime.now().year, DateTime.now().month);
+  Map<String, Map<String, dynamic>> _menusPorFecha = {};
 
   @override
   void initState() {
@@ -39,9 +42,16 @@ class _MenuCasinoPageState extends State<MenuCasinoPage> {
         headers: {'Authorization': 'Bearer $token'},
       );
       if (!mounted) return;
+      final lista = List<Map<String, dynamic>>.from(jsonDecode(res.body) as List? ?? []);
+      final porFecha = <String, Map<String, dynamic>>{};
+      for (final m in lista) {
+        final fecha = m['fecha']?.toString().split('T')[0] ?? '';
+        if (fecha.isNotEmpty) porFecha[fecha] = m;
+      }
       setState(() {
-        _menus    = List<Map<String, dynamic>>.from(jsonDecode(res.body) as List? ?? []);
-        _cargando = false;
+        _menus         = lista;
+        _menusPorFecha = porFecha;
+        _cargando      = false;
       });
     } catch (_) {
       if (!mounted) return;
@@ -58,7 +68,8 @@ class _MenuCasinoPageState extends State<MenuCasinoPage> {
         content: const Text('¿Estás seguro? Esta acción no se puede deshacer.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(context, true),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
               child: const Text('Eliminar', style: TextStyle(color: Colors.red))),
         ],
       ),
@@ -79,16 +90,23 @@ class _MenuCasinoPageState extends State<MenuCasinoPage> {
     }
   }
 
-  void _abrirFormulario({Map<String, dynamic>? menu}) {
+  void _abrirFormulario({Map<String, dynamic>? menu, DateTime? fechaInicial}) {
     showDialog(
       context: context,
       builder: (_) => _FormularioMenu(
         usuario: widget.usuario,
         menu: menu,
+        fechaInicial: fechaInicial,
         onGuardado: _cargarMenus,
       ),
     );
   }
+
+  void _irMesAnterior() => setState(() =>
+      _mesActual = DateTime(_mesActual.year, _mesActual.month - 1));
+
+  void _irMesSiguiente() => setState(() =>
+      _mesActual = DateTime(_mesActual.year, _mesActual.month + 1));
 
   @override
   Widget build(BuildContext context) {
@@ -97,6 +115,7 @@ class _MenuCasinoPageState extends State<MenuCasinoPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           Row(
             children: [
               const Text('Menú Casino',
@@ -108,7 +127,7 @@ class _MenuCasinoPageState extends State<MenuCasinoPage> {
                   color: _kAzul.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Text('Por fecha', style: TextStyle(fontSize: 11, color: _kAzul)),
+                child: const Text('Calendario', style: TextStyle(fontSize: 11, color: _kAzul)),
               ),
               const Spacer(),
               ElevatedButton.icon(
@@ -126,42 +145,63 @@ class _MenuCasinoPageState extends State<MenuCasinoPage> {
             ],
           ),
           const SizedBox(height: 20),
+
           if (_cargando)
             const Expanded(child: Center(child: CircularProgressIndicator(color: _kDorado)))
-          else if (_menus.isEmpty)
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.restaurant_menu_outlined, size: 52, color: Colors.grey.shade300),
-                    const SizedBox(height: 12),
-                    const Text('Aún no tienes menús creados',
-                        style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14)),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () => _abrirFormulario(),
-                      child: const Text('Crear primer menú', style: TextStyle(color: _kAzul)),
-                    ),
-                  ],
-                ),
-              ),
-            )
           else
             Expanded(
-              child: RefreshIndicator(
-                color: _kDorado,
-                onRefresh: _cargarMenus,
-                child: ListView.separated(
-                  itemCount: _menus.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _MenuCard(
-                    usuario: widget.usuario,
-                    menu: _menus[i],
-                    onEliminar: () => _eliminar(_menus[i]['id']),
-                    onEditar: () => _abrirFormulario(menu: _menus[i]),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Calendario
+                  SizedBox(
+                    width: 360,
+                    child: _Calendario(
+                      mesActual: _mesActual,
+                      menusPorFecha: _menusPorFecha,
+                      onAnterior: _irMesAnterior,
+                      onSiguiente: _irMesSiguiente,
+                      onDiaTap: (fecha, menu) {
+                        if (menu != null) {
+                          _abrirFormulario(menu: menu);
+                        } else {
+                          _abrirFormulario(fechaInicial: fecha);
+                        }
+                      },
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 20),
+
+                  // Lista de menús
+                  Expanded(
+                    child: _menus.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.restaurant_menu_outlined,
+                                    size: 52, color: Colors.grey.shade300),
+                                const SizedBox(height: 12),
+                                const Text('Aún no tienes menús creados',
+                                    style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14)),
+                              ],
+                            ),
+                          )
+                        : RefreshIndicator(
+                            color: _kDorado,
+                            onRefresh: _cargarMenus,
+                            child: ListView.separated(
+                              itemCount: _menus.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 10),
+                              itemBuilder: (_, i) => _MenuCard(
+                                menu: _menus[i],
+                                onEliminar: () => _eliminar(_menus[i]['id']),
+                                onEditar: () => _abrirFormulario(menu: _menus[i]),
+                              ),
+                            ),
+                          ),
+                  ),
+                ],
               ),
             ),
         ],
@@ -170,24 +210,185 @@ class _MenuCasinoPageState extends State<MenuCasinoPage> {
   }
 }
 
-// ─── Card menú ────────────────────────────────────────────────
-class _MenuCard extends StatelessWidget {
-  final Map<String, dynamic> usuario;
-  final Map<String, dynamic> menu;
-  final VoidCallback onEliminar;
-  final VoidCallback onEditar;
+// ─── Calendario ────────────────────────────────────────────────────────────────
 
-  const _MenuCard({
-    required this.usuario,
-    required this.menu,
-    required this.onEliminar,
-    required this.onEditar,
+class _Calendario extends StatelessWidget {
+  final DateTime mesActual;
+  final Map<String, Map<String, dynamic>> menusPorFecha;
+  final VoidCallback onAnterior;
+  final VoidCallback onSiguiente;
+  final void Function(DateTime fecha, Map<String, dynamic>? menu) onDiaTap;
+
+  const _Calendario({
+    required this.mesActual,
+    required this.menusPorFecha,
+    required this.onAnterior,
+    required this.onSiguiente,
+    required this.onDiaTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final fecha = _formatFecha(menu['fecha']?.toString() ?? '');
-    final esHoy = _esHoy(menu['fecha']?.toString() ?? '');
+    final diasSemana = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'];
+    final primerDia  = DateTime(mesActual.year, mesActual.month, 1);
+    final diasMes    = DateTime(mesActual.year, mesActual.month + 1, 0).day;
+    // Día de semana del primer día (0=Lunes)
+    final offsetInicio = (primerDia.weekday - 1) % 7;
+    final hoy = DateTime.now();
+
+    const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Header mes
+          Row(
+            children: [
+              IconButton(
+                onPressed: onAnterior,
+                icon: const Icon(Icons.chevron_left, color: _kAzul),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+              Expanded(
+                child: Text(
+                  '${meses[mesActual.month - 1]} ${mesActual.year}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
+                ),
+              ),
+              IconButton(
+                onPressed: onSiguiente,
+                icon: const Icon(Icons.chevron_right, color: _kAzul),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Días de semana
+          Row(
+            children: diasSemana.map((d) => Expanded(
+              child: Text(d,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF6B7280))),
+            )).toList(),
+          ),
+          const SizedBox(height: 8),
+
+          // Grid de días
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              mainAxisSpacing: 4,
+              crossAxisSpacing: 4,
+              childAspectRatio: 1,
+            ),
+            itemCount: offsetInicio + diasMes,
+            itemBuilder: (_, index) {
+              if (index < offsetInicio) return const SizedBox();
+              final dia     = index - offsetInicio + 1;
+              final fecha   = DateTime(mesActual.year, mesActual.month, dia);
+              final fechaStr = '${mesActual.year}-${mesActual.month.toString().padLeft(2, '0')}-${dia.toString().padLeft(2, '0')}';
+              final tieneMenu = menusPorFecha.containsKey(fechaStr);
+              final esHoy   = fecha.year == hoy.year && fecha.month == hoy.month && fecha.day == hoy.day;
+
+              return GestureDetector(
+                onTap: () => onDiaTap(fecha, menusPorFecha[fechaStr]),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  decoration: BoxDecoration(
+                    color: tieneMenu
+                        ? _kAzul
+                        : esHoy
+                            ? _kDorado.withOpacity(0.15)
+                            : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: esHoy && !tieneMenu
+                        ? Border.all(color: _kDorado, width: 1.5)
+                        : null,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$dia',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: tieneMenu || esHoy ? FontWeight.w600 : FontWeight.w400,
+                          color: tieneMenu
+                              ? Colors.white
+                              : esHoy
+                                  ? _kDorado
+                                  : const Color(0xFF374151),
+                        ),
+                      ),
+                      if (tieneMenu)
+                        Container(
+                          width: 4, height: 4,
+                          margin: const EdgeInsets.only(top: 2),
+                          decoration: const BoxDecoration(
+                            color: _kDorado, shape: BoxShape.circle,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+
+          // Leyenda
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(width: 10, height: 10,
+                  decoration: BoxDecoration(color: _kAzul, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 4),
+              const Text('Con menú', style: TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+              const SizedBox(width: 12),
+              Container(width: 10, height: 10,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: _kDorado, width: 1.5),
+                    borderRadius: BorderRadius.circular(2),
+                  )),
+              const SizedBox(width: 4),
+              const Text('Hoy', style: TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Card menú ─────────────────────────────────────────────────────────────────
+
+class _MenuCard extends StatelessWidget {
+  final Map<String, dynamic> menu;
+  final VoidCallback onEliminar;
+  final VoidCallback onEditar;
+
+  const _MenuCard({required this.menu, required this.onEliminar, required this.onEditar});
+
+  @override
+  Widget build(BuildContext context) {
+    final fecha  = _formatFecha(menu['fecha']?.toString() ?? '');
+    final esHoy  = _esHoy(menu['fecha']?.toString() ?? '');
+    final platos = menu['platos'] as List? ?? [];
 
     return Container(
       decoration: BoxDecoration(
@@ -197,9 +398,12 @@ class _MenuCard extends StatelessWidget {
           color: esHoy ? _kDorado.withOpacity(0.5) : const Color(0xFFE5E7EB),
           width: esHoy ? 1.5 : 0.5,
         ),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
           Container(
@@ -210,10 +414,12 @@ class _MenuCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.calendar_today_outlined, size: 14, color: esHoy ? _kDorado : const Color(0xFF6B7280)),
+                Icon(Icons.calendar_today_outlined,
+                    size: 14, color: esHoy ? _kDorado : const Color(0xFF6B7280)),
                 const SizedBox(width: 6),
                 Text(fecha,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600,
                         color: esHoy ? Colors.white : const Color(0xFF374151))),
                 if (esHoy) ...[
                   const SizedBox(width: 8),
@@ -225,79 +431,47 @@ class _MenuCard extends StatelessWidget {
                   ),
                 ],
                 const Spacer(),
-                if (menu['precio'] != null)
-                  Text('\$${menu['precio']}',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
-                          color: esHoy ? _kDorado : _kAzul)),
-                const SizedBox(width: 12),
                 _iconBtn(Icons.edit_outlined, _kAzul.withOpacity(0.6), onEditar),
                 const SizedBox(width: 6),
                 _iconBtn(Icons.delete_outline, Colors.red.shade300, onEliminar),
-                const SizedBox(width: 6),
-                // Botón para abrir formulario de platos
-                                _iconBtn(Icons.restaurant_menu_outlined, _kDorado, () {
-                  showDialog(
-                    context: context,
-                    builder: (_) => _FormularioPlato(
-                      usuario: usuario,
-                      menuId: menu['id'].toString(),
-                      onGuardado: () {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Plato guardado correctamente'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                }),
               ],
             ),
           ),
 
-          // Contenido
+          // Nombre y descripción del menú
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: _campoMenu('Entrada',     menu['entrada'],      Icons.soup_kitchen_outlined)),
-                const SizedBox(width: 12),
-                Expanded(child: _campoMenu('Plato fondo', menu['plato_fondo'],  Icons.dinner_dining)),
-                const SizedBox(width: 12),
-                Expanded(child: _campoMenu('Postre',      menu['postre'],       Icons.icecream_outlined)),
-                const SizedBox(width: 12),
-                Expanded(child: _campoMenu('Vegetariano', menu['vegetariano'],  Icons.eco_outlined)),
+                Text(menu['nombre'] ?? '',
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                if (menu['descripcion'] != null && menu['descripcion'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(menu['descripcion'],
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                ],
               ],
             ),
           ),
+
+          // Platos
+          if (platos.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Wrap(
+                spacing: 8, runSpacing: 8,
+                children: platos.map((p) => _PlatoChip(plato: p as Map<String, dynamic>)).toList(),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
         ],
       ),
-    );
-  }
-
-  Widget _campoMenu(String label, dynamic valor, IconData icono) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icono, size: 13, color: _kDorado),
-            const SizedBox(width: 4),
-            Text(label,
-                style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          valor?.toString() ?? '—',
-          style: TextStyle(
-            fontSize: 12,
-            color: valor != null ? const Color(0xFF111827) : const Color(0xFFD1D5DB),
-          ),
-        ),
-      ],
     );
   }
 
@@ -332,16 +506,60 @@ class _MenuCard extends StatelessWidget {
   }
 }
 
-// ─── Formulario menú ──────────────────────────────────────────
+class _PlatoChip extends StatelessWidget {
+  final Map<String, dynamic> plato;
+  const _PlatoChip({required this.plato});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F6FB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (plato['etiqueta'] != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: _kAzul.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(plato['etiqueta'],
+                  style: const TextStyle(fontSize: 9, color: _kAzul, fontWeight: FontWeight.w500)),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Text(plato['nombre'] ?? '',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF374151))),
+          if (plato['precio'] != null) ...[
+            const SizedBox(width: 6),
+            Text('\$${plato['precio']}',
+                style: const TextStyle(fontSize: 11, color: _kAzul, fontWeight: FontWeight.w500)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Formulario ────────────────────────────────────────────────────────────────
+
 class _FormularioMenu extends StatefulWidget {
   final Map<String, dynamic> usuario;
   final Map<String, dynamic>? menu;
+  final DateTime? fechaInicial;
   final VoidCallback onGuardado;
 
   const _FormularioMenu({
     required this.usuario,
     required this.onGuardado,
     this.menu,
+    this.fechaInicial,
   });
 
   @override
@@ -349,9 +567,11 @@ class _FormularioMenu extends StatefulWidget {
 }
 
 class _FormularioMenuState extends State<_FormularioMenu> {
-  final _formKey       = GlobalKey<FormState>();
-  final _precioCtrl    = TextEditingController();
+  final _formKey      = GlobalKey<FormState>();
+  final _nombreCtrl   = TextEditingController();
+  final _descCtrl     = TextEditingController();
   DateTime? _fecha;
+  List<_PlatoEditable> _platos = [];
   bool _guardando = false;
 
   bool get _esEdicion => widget.menu != null;
@@ -361,17 +581,33 @@ class _FormularioMenuState extends State<_FormularioMenu> {
     super.initState();
     if (_esEdicion) {
       final m = widget.menu!;
-      _precioCtrl.text  = m['precio']?.toString() ?? '';
+      _nombreCtrl.text = m['nombre'] ?? '';
+      _descCtrl.text   = m['descripcion'] ?? '';
       _fecha = m['fecha'] != null ? DateTime.tryParse(m['fecha']) : null;
+      final platos = m['platos'] as List? ?? [];
+      _platos = platos.map((p) => _PlatoEditable.desdeJson(p as Map<String, dynamic>)).toList();
     } else {
-      _fecha = DateTime.now();
+      _fecha = widget.fechaInicial ?? DateTime.now();
     }
   }
 
   @override
   void dispose() {
-    _precioCtrl.dispose();
+    _nombreCtrl.dispose();
+    _descCtrl.dispose();
+    for (final p in _platos) p.dispose();
     super.dispose();
+  }
+
+  void _agregarPlato() {
+    setState(() => _platos.add(_PlatoEditable()));
+  }
+
+  void _eliminarPlato(int index) {
+    setState(() {
+      _platos[index].dispose();
+      _platos.removeAt(index);
+    });
   }
 
   Future<void> _seleccionarFecha() async {
@@ -391,6 +627,22 @@ class _FormularioMenuState extends State<_FormularioMenu> {
     if (fecha != null) setState(() => _fecha = fecha);
   }
 
+  Future<String?> _subirImagen(_PlatoEditable plato) async {
+    if (plato.imagenBytes == null) return plato.imagenUrl;
+    final token   = widget.usuario['token'] ?? '';
+    final request = http.MultipartRequest('POST', Uri.parse('$_kBase/api/upload'));
+    request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(http.MultipartFile.fromBytes(
+      'imagen', plato.imagenBytes!,
+      filename: plato.imagenNombre ?? 'imagen.jpg',
+      contentType: MediaType.parse(plato.imagenMime ?? 'image/jpeg'),
+    ));
+    final response = await request.send();
+    final body     = await response.stream.bytesToString();
+    final data     = jsonDecode(body);
+    return data['url'] as String?;
+  }
+
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
     if (_fecha == null) {
@@ -405,24 +657,35 @@ class _FormularioMenuState extends State<_FormularioMenu> {
       final token    = widget.usuario['token'] ?? '';
       final tiendaId = widget.usuario['tienda_id'] ?? '';
 
+      // Subir imágenes de platos
+      final platosJson = <Map<String, dynamic>>[];
+      for (final p in _platos) {
+        final url = await _subirImagen(p);
+        platosJson.add({
+          'nombre':      p.nombreCtrl.text.trim(),
+          'descripcion': p.descCtrl.text.trim().isEmpty ? null : p.descCtrl.text.trim(),
+          'imagen_url':  url,
+          'precio':      p.precioCtrl.text.trim().isEmpty ? null : int.tryParse(p.precioCtrl.text.trim()),
+          'etiqueta':    p.etiquetaCtrl.text.trim().isEmpty ? null : p.etiquetaCtrl.text.trim(),
+        });
+      }
+
       final body = jsonEncode({
         'tienda_id':   tiendaId,
-        'fecha':       _fecha!.toIso8601String().split('T')[0],
-        'precio':      _precioCtrl.text.trim().isEmpty   ? null : double.tryParse(_precioCtrl.text.trim()),
+        'fecha':       '${_fecha!.year}-${_fecha!.month.toString().padLeft(2, '0')}-${_fecha!.day.toString().padLeft(2, '0')}',
+        'nombre':      _nombreCtrl.text.trim(),
+        'descripcion': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        'platos':      platosJson,
       });
 
       final headers = {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'};
 
       if (_esEdicion) {
-        await http.put(
-          Uri.parse('$_kBase/api/menu-casino/${widget.menu!['id']}'),
-          headers: headers, body: body,
-        );
+        await http.put(Uri.parse('$_kBase/api/menu-casino/${widget.menu!['id']}'),
+            headers: headers, body: body);
       } else {
-        await http.post(
-          Uri.parse('$_kBase/api/menu-casino'),
-          headers: headers, body: body,
-        );
+        await http.post(Uri.parse('$_kBase/api/menu-casino'),
+            headers: headers, body: body);
       }
 
       if (!mounted) return;
@@ -439,349 +702,144 @@ class _FormularioMenuState extends State<_FormularioMenu> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: SizedBox(
-        width: 420,
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _esEdicion ? 'Editar menú' : 'Nuevo menú del casino',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+        width: 560,
+        height: MediaQuery.of(context).size.height * 0.85,
+        child: Column(
+          children: [
+            // Header del dialog
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 20, 16, 16),
+              decoration: const BoxDecoration(
+                color: _kAzul,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
               ),
-
-              const SizedBox(height: 20),
-
-              const Text(
-                'Fecha del menú',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Row(
+                children: [
+                  Text(_esEdicion ? 'Editar menú' : 'Nuevo menú del casino',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                    padding: EdgeInsets.zero,
+                  ),
+                ],
               ),
+            ),
 
-              const SizedBox(height: 8),
-
-              InkWell(
-                onTap: _seleccionarFecha,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: const Color(0xFFD1D5DB),
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
+            // Contenido scrolleable
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.calendar_today_outlined),
-                      const SizedBox(width: 8),
-                      Text(
-                        _fecha != null
-                            ? _formatFecha(_fecha!)
-                            : 'Seleccionar fecha',
+                      // Fecha
+                      const Text('Fecha del menú',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF374151))),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: _seleccionarFecha,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFFD1D5DB)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF6B7280)),
+                              const SizedBox(width: 8),
+                              Text(
+                                _fecha != null ? _formatFecha(_fecha!) : 'Seleccionar fecha',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: _fecha != null ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
+                      const SizedBox(height: 14),
+
+                      // Nombre menú
+                      _campo('Nombre del menú', _nombreCtrl, requerido: true,
+                          hint: 'Ej: Menú del día, Menú ejecutivo...'),
+                      const SizedBox(height: 10),
+                      _campo('Descripción (opcional)', _descCtrl, maxLineas: 2,
+                          hint: 'Ej: Incluye bebida y postre'),
+                      const SizedBox(height: 20),
+
+                      // Platos
+                      Row(
+                        children: [
+                          const Text('Platos',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: _agregarPlato,
+                            icon: const Icon(Icons.add, size: 16, color: _kAzul),
+                            label: const Text('Agregar plato',
+                                style: TextStyle(color: _kAzul, fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      if (_platos.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+                            borderRadius: BorderRadius.circular(8),
+                            color: const Color(0xFFF9FAFB),
+                          ),
+                          child: const Column(
+                            children: [
+                              Icon(Icons.restaurant_outlined, size: 32, color: Color(0xFFD1D5DB)),
+                              SizedBox(height: 8),
+                              Text('Agrega los platos del menú',
+                                  style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 13)),
+                            ],
+                          ),
+                        )
+                      else
+                        ...List.generate(_platos.length, (i) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _FormularioPlato(
+                            plato: _platos[i],
+                            numero: i + 1,
+                            onEliminar: () => _eliminarPlato(i),
+                            onImagenSeleccionada: () => setState(() {}),
+                          ),
+                        )),
                     ],
                   ),
                 ),
               ),
+            ),
 
-              const SizedBox(height: 16),
-
-              _campo(
-                'Precio (opcional)',
-                _precioCtrl,
-                teclado: TextInputType.number,
-                hint: 'Ej: 2500',
+            // Footer con botones
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: Color(0xFFE5E7EB), width: 0.5)),
               ),
-
-              const SizedBox(height: 24),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancelar'),
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _guardando ? null : _guardar,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _kDorado,
-                        foregroundColor: _kAzul,
-                      ),
-                      child: _guardando
-                          ? const CircularProgressIndicator()
-                          : Text(
-                              _esEdicion
-                                  ? 'Guardar cambios'
-                                  : 'Crear menú',
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _formatFecha(DateTime dt) {
-    const meses = ['enero','febrero','marzo','abril','mayo','junio',
-                   'julio','agosto','septiembre','octubre','noviembre','diciembre'];
-    return '${dt.day} de ${meses[dt.month - 1]} ${dt.year}';
-  }
-
-  Widget _campo(String label, TextEditingController ctrl,
-      {String? hint, TextInputType? teclado}) {
-    return TextFormField(
-      controller: ctrl,
-      keyboardType: teclado,
-      style: const TextStyle(fontSize: 13),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        labelStyle: const TextStyle(fontSize: 13),
-        hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: _kAzul),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        isDense: true,
-      ),
-    );
-  }
-}
-
-
-// ─── Formulario plato ─────────────────────────────────────────
-
-class _FormularioPlato extends StatefulWidget {
-  final Map<String, dynamic> usuario;
-  final String menuId;
-  final Map<String, dynamic>? plato;
-  final VoidCallback onGuardado;
-
-  const _FormularioPlato({
-    required this.usuario,
-    required this.menuId,
-    required this.onGuardado,
-    this.plato,
-  });
-
-  @override
-  State<_FormularioPlato> createState() => _FormularioPlatoState();
-}
-
-class _FormularioPlatoState extends State<_FormularioPlato> {
-  final _nombreCtrl = TextEditingController();
-  final _descCtrl   = TextEditingController();
-
-  Uint8List? _imagenBytes;
-  String? _imagenNombre;
-  String? _imagenMime;
-
-  bool _guardando = false;
-
-  bool get _esEdicion => widget.plato != null;
-  String? get _imagenUrlActual => widget.plato?['imagen_url'] as String?;
-
-  @override
-  void initState() {
-    super.initState();
-    if (_esEdicion) {
-      _nombreCtrl.text = widget.plato!['nombre'] ?? '';
-      _descCtrl.text   = widget.plato!['descripcion'] ?? '';
-    }
-  }
-
-  @override
-  void dispose() {
-    _nombreCtrl.dispose();
-    _descCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _seleccionarImagen() async {
-    try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-      if (picked == null) return;
-      final bytes = await picked.readAsBytes();
-      setState(() {
-        _imagenBytes  = bytes;
-        _imagenNombre = picked.name;
-        _imagenMime   = picked.mimeType ?? 'image/jpeg';
-      });
-    } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error al seleccionar imagen'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  Future<void> _guardar() async {
-    if (_nombreCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El nombre del plato es obligatorio'), backgroundColor: Colors.red),
-      );
-      return;
-    }
-
-    setState(() => _guardando = true);
-
-    try {
-      final token = widget.usuario['token'] ?? '';
-      final uri = _esEdicion
-          ? Uri.parse('$_kBase/api/menu-casino/platos/${widget.plato!['id']}')
-          : Uri.parse('$_kBase/api/menu-casino/${widget.menuId}/platos');
-
-      final request = _esEdicion
-          ? http.MultipartRequest('PUT', uri)
-          : http.MultipartRequest('POST', uri);
-
-      request.headers['Authorization'] = 'Bearer $token';
-      request.fields['nombre'] = _nombreCtrl.text.trim();
-      request.fields['descripcion'] = _descCtrl.text.trim();
-
-      if (_imagenBytes != null) {
-        request.files.add(
-          http.MultipartFile.fromBytes(
-            'imagen',
-            _imagenBytes!,
-            filename: _imagenNombre ?? 'imagen.jpg',
-            contentType: MediaType.parse(_imagenMime ?? 'image/jpeg'),
-          ),
-        );
-      }
-
-      final response = await request.send();
-      if (!mounted) return;
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        Navigator.pop(context);
-        widget.onGuardado();
-      } else {
-        final body = await response.stream.bytesToString();
-        setState(() => _guardando = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar: ${response.statusCode}\n$body'),
-              backgroundColor: Colors.red),
-        );
-      }
-    } catch (e) {
-      setState(() => _guardando = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error de conexión: $e'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: SizedBox(
-        width: 400,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(_esEdicion ? 'Editar plato' : 'Agregar plato',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 20),
-
-              const Text('Imagen del plato',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF374151))),
-              const SizedBox(height: 8),
-
-              GestureDetector(
-                onTap: _seleccionarImagen,
-                child: Container(
-                  height: 130,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF9FAFB),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: _imagenBytes != null ? _kDorado : const Color(0xFFD1D5DB),
-                      width: _imagenBytes != null ? 1.5 : 0.5,
-                    ),
-                  ),
-                  child: _imagenBytes != null
-                      ? ClipRRect(borderRadius: BorderRadius.circular(10),
-                          child: Image.memory(_imagenBytes!, fit: BoxFit.cover))
-                      : _imagenUrlActual != null
-                          ? Image.network(_imagenUrlActual!, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _uploadPlaceholder())
-                          : _uploadPlaceholder(),
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text('Opcional · JPG, PNG o WEBP · máx. 5MB',
-                  style: TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _nombreCtrl,
-                style: const TextStyle(fontSize: 13),
-                decoration: InputDecoration(
-                  labelText: 'Nombre del plato *',
-                  hintText: 'Ej: Entrada, Plato fondo, Postre...',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _kAzul)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              TextFormField(
-                controller: _descCtrl,
-                maxLines: 2,
-                style: const TextStyle(fontSize: 13),
-                decoration: InputDecoration(
-                  labelText: 'Descripción (opcional)',
-                  hintText: 'Ej: Ensalada mixta con tomate cherry',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _kAzul)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              Row(
+              child: Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 12)),
                       child: const Text('Cancelar'),
                     ),
                   ),
@@ -794,39 +852,259 @@ class _FormularioPlatoState extends State<_FormularioPlato> {
                         foregroundColor: _kAzul,
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: _guardando
                           ? const SizedBox(width: 18, height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2, color: _kAzul))
-                          : Text(_esEdicion ? 'Guardar cambios' : 'Agregar plato',
+                          : Text(_esEdicion ? 'Guardar cambios' : 'Crear menú',
                               style: const TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-    Widget _uploadPlaceholder() => Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  String _formatFecha(DateTime dt) {
+    const meses = ['enero','febrero','marzo','abril','mayo','junio',
+                   'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    return '${dt.day} de ${meses[dt.month - 1]} ${dt.year}';
+  }
+
+  Widget _campo(String label, TextEditingController ctrl,
+      {bool requerido = false, int maxLineas = 1, String? hint}) {
+    return TextFormField(
+      controller: ctrl,
+      maxLines: maxLineas,
+      style: const TextStyle(fontSize: 13),
+      decoration: InputDecoration(
+        labelText: label, hintText: hint,
+        labelStyle: const TextStyle(fontSize: 13),
+        hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: _kAzul),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        isDense: true,
+      ),
+      validator: requerido ? (v) => (v == null || v.trim().isEmpty) ? 'Campo requerido' : null : null,
+    );
+  }
+}
+
+// ─── Formulario de plato individual ───────────────────────────────────────────
+
+class _FormularioPlato extends StatefulWidget {
+  final _PlatoEditable plato;
+  final int numero;
+  final VoidCallback onEliminar;
+  final VoidCallback onImagenSeleccionada;
+
+  const _FormularioPlato({
+    required this.plato,
+    required this.numero,
+    required this.onEliminar,
+    required this.onImagenSeleccionada,
+  });
+
+  @override
+  State<_FormularioPlato> createState() => _FormularioplatoState();
+}
+
+class _FormularioplatoState extends State<_FormularioPlato> {
+  Future<void> _seleccionarImagen() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      widget.plato.imagenBytes  = bytes;
+      widget.plato.imagenNombre = picked.name;
+      widget.plato.imagenMime   = picked.mimeType ?? 'image/jpeg';
+      widget.plato.imagenUrl    = null;
+    });
+    widget.onImagenSeleccionada();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tieneImagen = widget.plato.imagenBytes != null || widget.plato.imagenUrl != null;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.add_photo_alternate_outlined,
-            size: 28,
-            color: Colors.grey.shade400,
+          // Header plato
+          Row(
+            children: [
+              Container(
+                width: 22, height: 22,
+                decoration: BoxDecoration(color: _kAzul, borderRadius: BorderRadius.circular(6)),
+                child: Center(
+                  child: Text('${widget.numero}',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('Plato', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF374151))),
+              const Spacer(),
+              InkWell(
+                onTap: widget.onEliminar,
+                child: const Icon(Icons.close, size: 16, color: Color(0xFF9CA3AF)),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Subir imagen',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade500,
-            ),
+          const SizedBox(height: 12),
+
+          // Imagen
+          Row(
+            children: [
+              // Preview imagen
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 60, height: 60,
+                  child: widget.plato.imagenBytes != null
+                      ? Image.memory(widget.plato.imagenBytes!, fit: BoxFit.cover)
+                      : widget.plato.imagenUrl != null
+                          ? Image.network(widget.plato.imagenUrl!, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _placeholder())
+                          : _placeholder(),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _seleccionarImagen,
+                    icon: const Icon(Icons.add_photo_alternate_outlined, size: 14, color: _kAzul),
+                    label: Text(
+                      tieneImagen ? 'Cambiar imagen' : 'Agregar imagen',
+                      style: const TextStyle(color: _kAzul, fontSize: 11),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: _kAzul),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
+                  ),
+                  if (tieneImagen) ...[
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        widget.plato.imagenBytes  = null;
+                        widget.plato.imagenUrl    = null;
+                        widget.plato.imagenNombre = null;
+                      }),
+                      child: const Text('Quitar imagen',
+                          style: TextStyle(fontSize: 10, color: Colors.red)),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Nombre y etiqueta en fila
+          Row(
+            children: [
+              Expanded(flex: 3, child: _campoPlato('Nombre del plato *', widget.plato.nombreCtrl, requerido: true)),
+              const SizedBox(width: 8),
+              Expanded(flex: 2, child: _campoPlato('Etiqueta', widget.plato.etiquetaCtrl, hint: 'Ej: Entrada')),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Descripción
+          _campoPlato('Descripción (opcional)', widget.plato.descCtrl, maxLineas: 2),
+          const SizedBox(height: 8),
+
+          // Precio
+          SizedBox(
+            width: 140,
+            child: _campoPlato('Precio', widget.plato.precioCtrl,
+                hint: 'Ej: 2500', teclado: TextInputType.number),
           ),
         ],
-      );
+      ),
+    );
+  }
+
+  Widget _placeholder() => Container(
+    color: const Color(0xFFE5E7EB),
+    child: const Center(child: Icon(Icons.restaurant_outlined, size: 24, color: Color(0xFF9CA3AF))),
+  );
+
+  Widget _campoPlato(String label, TextEditingController ctrl,
+      {bool requerido = false, int maxLineas = 1, String? hint, TextInputType? teclado}) {
+    return TextFormField(
+      controller: ctrl,
+      maxLines: maxLineas,
+      keyboardType: teclado,
+      style: const TextStyle(fontSize: 12),
+      decoration: InputDecoration(
+        labelText: label, hintText: hint,
+        labelStyle: const TextStyle(fontSize: 12),
+        hintStyle: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(7)),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(7),
+          borderSide: const BorderSide(color: _kAzul),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        isDense: true,
+      ),
+      validator: requerido ? (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null : null,
+    );
+  }
+}
+
+// ─── Modelo editable de plato ──────────────────────────────────────────────────
+
+class _PlatoEditable {
+  final nombreCtrl   = TextEditingController();
+  final descCtrl     = TextEditingController();
+  final precioCtrl   = TextEditingController();
+  final etiquetaCtrl = TextEditingController();
+
+  Uint8List? imagenBytes;
+  String?    imagenNombre;
+  String?    imagenMime;
+  String?    imagenUrl;
+
+  _PlatoEditable();
+
+  static _PlatoEditable desdeJson(Map<String, dynamic> json) {
+    final p = _PlatoEditable();
+    p.nombreCtrl.text   = json['nombre']      ?? '';
+    p.descCtrl.text     = json['descripcion'] ?? '';
+    p.precioCtrl.text   = json['precio']?.toString() ?? '';
+    p.etiquetaCtrl.text = json['etiqueta']    ?? '';
+    p.imagenUrl         = json['imagen_url']  as String?;
+    return p;
+  }
+
+  void dispose() {
+    nombreCtrl.dispose();
+    descCtrl.dispose();
+    precioCtrl.dispose();
+    etiquetaCtrl.dispose();
+  }
 }

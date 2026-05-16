@@ -30,7 +30,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_dotenv: ^5.1.0
   
+
+
   flutter_localizations:
     sdk: flutter
   # The following adds the Cupertino Icons font to your application.
@@ -72,6 +75,7 @@ flutter:
     - assets/Fondo_home.png
     - assets/campus_fondo.jpg
     - assets/google_logo.png
+    - .env
 
   # To add assets to your application, add an assets section, like this:
   # assets:

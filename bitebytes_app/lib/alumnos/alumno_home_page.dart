@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'search_page.dart';
+import 'dart:html' as html;
 import 'package:http/http.dart' as http;
+import 'package:bitebytes_app/config/env.dart';
+import '../login.dart';
+import 'search_page.dart';
 
 const _kAzul   = Color(0xFF0B1F5C);
 const _kDorado = Color(0xFFF5A623);
-const _kBase   = 'http://172.16.13.105:3000';
+final _kBase   = Env.apiUrl;
 
 class AlumnoHomePage extends StatefulWidget {
   final Map<String, dynamic> usuario;
@@ -83,6 +86,40 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
     }
   }
 
+  Future<void> _cerrarSesion() async {
+    try {
+      final token = widget.usuario['token'] ?? '';
+      if (token.isEmpty) {
+        _limpiarURLYNavegar();
+        return;
+      }
+
+      await http.post(
+        Uri.parse('$_kBase/api/auth/logout'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+    } catch (_) {
+      // Aunque haya error, procedemos a navegar
+    } finally {
+      if (mounted) {
+        _limpiarURLYNavegar();
+      }
+    }
+  }
+
+  void _limpiarURLYNavegar() {
+    // Limpiar parámetros de URL para evitar redirección automática
+    html.window.history.replaceState(null, '', Uri.base.toString().split('?')[0]);
+    _navegarAlLogin();
+  }
+
+  void _navegarAlLogin() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -95,6 +132,7 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
             onSeccion: (i) => setState(() => _seccionActual = i),
             busquedaCtrl: _busquedaCtrl,
             onBuscar: _buscarProductos,
+            onLogout: _cerrarSesion,
           ),
           Expanded(
             child: _busquedaCtrl.text.isNotEmpty
@@ -127,6 +165,7 @@ class _Navbar extends StatelessWidget {
   final ValueChanged<int> onSeccion;
   final TextEditingController busquedaCtrl;
   final ValueChanged<String> onBuscar;
+  final VoidCallback onLogout;
 
   const _Navbar({
     required this.usuario,
@@ -134,6 +173,7 @@ class _Navbar extends StatelessWidget {
     required this.onSeccion,
     required this.busquedaCtrl,
     required this.onBuscar,
+    required this.onLogout,
   });
 
   @override
@@ -202,7 +242,7 @@ class _Navbar extends StatelessWidget {
               context: context,
               backgroundColor: Colors.transparent,
               isScrollControlled: true,
-              builder: (_) => PerfilModal(usuario: usuario),
+              builder: (_) => PerfilModal(usuario: usuario, onLogout: onLogout),
             ),
             child: CircleAvatar(
               radius: 15,
@@ -284,7 +324,6 @@ class _PantallaInicioState extends State<_PantallaInicio> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Banner ocupa todo el ancho sin padding
             _BannerHero(
               onVerOfertas: () => _scrollCtrl.animateTo(
                 400,
@@ -292,29 +331,23 @@ class _PantallaInicioState extends State<_PantallaInicio> {
                 curve: Curves.easeInOut,
               ),
             ),
-
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Menú Casino
                   if (widget.menusCasino.isNotEmpty) ...[
                     _seccionTitulo('Menú Casino — hoy', Icons.restaurant_outlined),
                     const SizedBox(height: 12),
                     _MenuCasinoGrid(menus: widget.menusCasino),
                     const SizedBox(height: 24),
                   ],
-
-                  // Publicaciones activas
                   if (widget.publicaciones.isNotEmpty) ...[
                     _seccionTitulo('Publicaciones activas', Icons.campaign_outlined),
                     const SizedBox(height: 12),
                     _CarruselPublicaciones(publicaciones: widget.publicaciones),
                     const SizedBox(height: 24),
                   ],
-
-                  // Tiendas
                   _seccionTitulo('Tiendas del campus', Icons.store_outlined),
                   const SizedBox(height: 12),
                   _GridTiendas(tiendas: widget.tiendas),
@@ -427,7 +460,7 @@ class _MenuCasinoGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 180,
+      height: 200,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: menus.length,
@@ -444,8 +477,10 @@ class _MenuCasinoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nombre = menu['tienda_nombre'] ?? 'Casino';
-    final precio = menu['precio'];
+    final nombre  = menu['nombre'] as String? ?? menu['tienda_nombre'] as String? ?? 'Casino';
+    final platos  = (menu['platos'] as List? ?? []).cast<Map<String, dynamic>>();
+    // Muestra hasta 3 platos en la tarjeta
+    final preview = platos.take(3).toList();
 
     return GestureDetector(
       onTap: () => showDialog(
@@ -453,7 +488,7 @@ class _MenuCasinoCard extends StatelessWidget {
         builder: (_) => _MenuCasinoDetalle(menu: menu),
       ),
       child: Container(
-        width: 200,
+        width: 220,
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
@@ -473,6 +508,7 @@ class _MenuCasinoCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Cabecera
             Row(
               children: [
                 Container(
@@ -492,27 +528,32 @@ class _MenuCasinoCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            const Divider(color: Colors.white12, height: 1),
             const SizedBox(height: 10),
-            _menuRow('Entrada', menu['entrada']),
-            _menuRow('Fondo',   menu['plato_fondo']),
-            _menuRow('Postre',  menu['postre']),
+            const Divider(color: Colors.white12, height: 1),
+            const SizedBox(height: 8),
+
+            // Platos preview
+            if (preview.isEmpty)
+              const Text('Sin platos registrados',
+                  style: TextStyle(color: Colors.white38, fontSize: 11))
+            else
+              ...preview.map((p) => _platoRow(p)),
+
             const Spacer(),
+
+            // Footer
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (precio != null)
-                  Text('\$$precio',
-                      style: const TextStyle(
-                          color: _kDorado, fontSize: 16, fontWeight: FontWeight.w700)),
+                Text('${platos.length} plato${platos.length != 1 ? 's' : ''}',
+                    style: const TextStyle(color: Colors.white38, fontSize: 10)),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Text('Ver más →',
+                  child: const Text('Ver menú →',
                       style: TextStyle(color: Colors.white54, fontSize: 10)),
                 ),
               ],
@@ -523,29 +564,42 @@ class _MenuCasinoCard extends StatelessWidget {
     );
   }
 
-  Widget _menuRow(String label, dynamic valor) {
-    if (valor == null) return const SizedBox.shrink();
+  Widget _platoRow(Map<String, dynamic> plato) {
+    final etiqueta = plato['etiqueta'] as String?;
+    final nombre   = plato['nombre']   as String? ?? '';
+    final precio   = plato['precio'];
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 46,
-            child: Text(label,
-                style: TextStyle(color: _kDorado.withOpacity(0.8), fontSize: 10)),
-          ),
+          if (etiqueta != null)
+            SizedBox(
+              width: 50,
+              child: Text(etiqueta,
+                  style: TextStyle(
+                      color: _kDorado.withOpacity(0.8),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500)),
+            ),
           const SizedBox(width: 4),
           Expanded(
-            child: Text(valor.toString(),
+            child: Text(nombre,
                 style: const TextStyle(color: Colors.white70, fontSize: 10),
                 overflow: TextOverflow.ellipsis),
           ),
+          if (precio != null)
+            Text('\$$precio',
+                style: const TextStyle(
+                    color: _kDorado, fontSize: 10, fontWeight: FontWeight.w600)),
         ],
       ),
     );
   }
 }
+
+// ─── Detalle Menú Casino ───────────────────────────────────────────────────────
 
 class _MenuCasinoDetalle extends StatelessWidget {
   final Map<String, dynamic> menu;
@@ -553,25 +607,34 @@ class _MenuCasinoDetalle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nombre = menu['tienda_nombre'] ?? 'Casino';
-    final precio = menu['precio'];
+    final nombre      = menu['nombre']        as String? ?? menu['tienda_nombre'] as String? ?? 'Casino';
+    final tienda      = menu['tienda_nombre'] as String? ?? '';
+    final descripcion = menu['descripcion']   as String?;
+    final platos      = (menu['platos'] as List? ?? []).cast<Map<String, dynamic>>();
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: SizedBox(
-        width: 360,
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 600),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: _kAzul,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
                 children: [
                   Container(
                     width: 40, height: 40,
                     decoration: BoxDecoration(
-                      color: _kAzul,
+                      color: _kDorado.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.restaurant, color: _kDorado, size: 20),
@@ -583,81 +646,202 @@ class _MenuCasinoDetalle extends StatelessWidget {
                       children: [
                         Text(nombre,
                             style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w600, color: _kAzul)),
-                        const Text('Menú del día',
-                            style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white)),
+                        if (tienda.isNotEmpty)
+                          Text(tienda,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.white54)),
                       ],
                     ),
                   ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                  ),
                 ],
               ),
-              const SizedBox(height: 20),
-              const Divider(height: 1),
-              const SizedBox(height: 16),
-              _detalleRow(Icons.soup_kitchen_outlined, 'Entrada',     menu['entrada']),
-              _detalleRow(Icons.dinner_dining,          'Plato fondo', menu['plato_fondo']),
-              _detalleRow(Icons.icecream_outlined,      'Postre',      menu['postre']),
-              _detalleRow(Icons.eco_outlined,            'Vegetariano', menu['vegetariano']),
-              const SizedBox(height: 16),
-              const Divider(height: 1),
-              const SizedBox(height: 16),
-              if (precio != null)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Precio',
-                        style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey)),
-                    Text('\$$precio',
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w700, color: _kAzul)),
-                  ],
-                ),
-              const SizedBox(height: 20),
-              SizedBox(
+            ),
+
+            // Descripción
+            if (descripcion != null && descripcion.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                color: _kAzul.withOpacity(0.05),
+                child: Text(descripcion,
+                    style: const TextStyle(
+                        fontSize: 13, color: Colors.black54, fontStyle: FontStyle.italic)),
+              ),
+
+            // Lista de platos
+            Flexible(
+              child: platos.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text('Sin platos registrados',
+                            style: TextStyle(color: Colors.grey)),
+                      ),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: platos.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, indent: 20, endIndent: 20),
+                      itemBuilder: (_, i) => _PlatoTile(plato: platos[i]),
+                    ),
+            ),
+
+            // Botón cerrar
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginPage()),
+                    (route) => false,
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _kAzul,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  child: const Text('Cerrar', style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text('Cerrar',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _detalleRow(IconData icono, String label, dynamic valor) {
-    if (valor == null) return const SizedBox.shrink();
+class _PlatoTile extends StatelessWidget {
+  final Map<String, dynamic> plato;
+  const _PlatoTile({required this.plato});
+
+  @override
+  Widget build(BuildContext context) {
+    final nombre      = plato['nombre']      as String? ?? '';
+    final descripcion = plato['descripcion'] as String?;
+    final etiqueta    = plato['etiqueta']    as String?;
+    final precio      = plato['precio'];
+    final imagenUrl   = plato['imagen_url']  as String?;
+    final valoracion  = plato['valoracion_media'];
+    final totalRes    = plato['total_resenias'];
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icono, size: 18, color: _kDorado),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 90,
-            child: Text(label,
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey)),
+          // Imagen o ícono
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 56, height: 56,
+              child: imagenUrl != null && imagenUrl.isNotEmpty
+                  ? Image.network(imagenUrl, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _iconoPlaceholder())
+                  : _iconoPlaceholder(),
+            ),
           ),
+          const SizedBox(width: 12),
+
+          // Info
           Expanded(
-            child: Text(valor.toString(),
-                style: const TextStyle(fontSize: 13, color: Color(0xFF111827))),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Etiqueta + nombre
+                Row(
+                  children: [
+                    if (etiqueta != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _kDorado.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(etiqueta,
+                            style: const TextStyle(
+                                fontSize: 9,
+                                color: _kDorado,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(nombre,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111827)),
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+
+                // Descripción
+                if (descripcion != null && descripcion.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(descripcion,
+                      style: const TextStyle(
+                          fontSize: 11, color: Colors.grey),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                ],
+
+                const SizedBox(height: 6),
+
+                // Precio + valoración
+                Row(
+                  children: [
+                    if (precio != null)
+                      Text('\$$precio',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _kAzul)),
+                    const Spacer(),
+                    if (valoracion != null && valoracion.toString() != 'null') ...[
+                      const Icon(Icons.star_rounded,
+                          size: 14, color: _kDorado),
+                      const SizedBox(width: 2),
+                      Text(valoracion.toString(),
+                          style: const TextStyle(
+                              fontSize: 11, color: Colors.grey)),
+                      if (totalRes != null && int.tryParse(totalRes.toString())! > 0)
+                        Text(' ($totalRes)',
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.grey)),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+
+  Widget _iconoPlaceholder() => Container(
+    color: const Color(0xFFF3F4F6),
+    child: const Center(
+        child: Icon(Icons.restaurant_menu,
+            size: 24, color: Color(0xFFD1D5DB))),
+  );
 }
 
 // ─── Carrusel publicaciones ────────────────────────────────────────────────────
@@ -737,11 +921,14 @@ class _PubCard extends StatelessWidget {
                 children: [
                   if (tienda.isNotEmpty)
                     Text(tienda,
-                        style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+                        style: const TextStyle(
+                            fontSize: 10, color: Color(0xFF6B7280))),
                   const SizedBox(height: 2),
                   Text(nombre,
                       style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF111827)),
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 8),
                   Row(
@@ -750,16 +937,21 @@ class _PubCard extends StatelessWidget {
                       if (precio != null)
                         Text('\$$precio',
                             style: const TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w600, color: _kAzul)),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: _kAzul)),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
                           color: const Color(0xFFDCFCE7),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Text('Activa',
                             style: TextStyle(
-                                fontSize: 9, color: Color(0xFF166534), fontWeight: FontWeight.w500)),
+                                fontSize: 9,
+                                color: Color(0xFF166534),
+                                fontWeight: FontWeight.w500)),
                       ),
                     ],
                   ),
@@ -775,7 +967,8 @@ class _PubCard extends StatelessWidget {
   Widget _placeholder() => Container(
     color: const Color(0xFFF9FAFB),
     child: const Center(
-        child: Icon(Icons.campaign_outlined, size: 28, color: Color(0xFFD1D5DB))),
+        child: Icon(Icons.campaign_outlined,
+            size: 28, color: Color(0xFFD1D5DB))),
   );
 }
 
@@ -858,7 +1051,9 @@ class _GridTiendas extends StatelessWidget {
                   children: [
                     Text(t['nombre'] ?? '',
                         style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF111827)),
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 2),
                     Row(
@@ -866,9 +1061,7 @@ class _GridTiendas extends StatelessWidget {
                         Container(
                           width: 6, height: 6,
                           decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                          ),
+                              color: color, shape: BoxShape.circle),
                         ),
                         const SizedBox(width: 4),
                         Text(tipo,
@@ -912,7 +1105,8 @@ class _PantallaResultados extends StatelessWidget {
             Icon(Icons.search_off, size: 56, color: Colors.grey.shade200),
             const SizedBox(height: 12),
             Text('Sin resultados para "$query"',
-                style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14)),
+                style: const TextStyle(
+                    color: Color(0xFF9CA3AF), fontSize: 14)),
           ],
         ),
       );
@@ -927,7 +1121,7 @@ class _PantallaResultados extends StatelessWidget {
       ),
       itemCount: resultados.length,
       itemBuilder: (_, i) {
-        final p        = resultados[i];
+        final p         = resultados[i];
         final imagenUrl = p['imagen_url'] as String?;
         return Container(
           decoration: BoxDecoration(
@@ -946,7 +1140,8 @@ class _PantallaResultados extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(12)),
                 child: SizedBox(
                   height: 100, width: double.infinity,
                   child: imagenUrl != null && imagenUrl.isNotEmpty
@@ -961,16 +1156,22 @@ class _PantallaResultados extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(p['tienda_nombre'] ?? '',
-                        style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+                        style: const TextStyle(
+                            fontSize: 10, color: Color(0xFF6B7280))),
                     const SizedBox(height: 2),
                     Text(p['nombre'] ?? '',
                         style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF111827)),
-                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF111827)),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 6),
                     Text('\$${p['precio'] ?? '-'}',
                         style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w500, color: _kAzul)),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: _kAzul)),
                   ],
                 ),
               ),
@@ -984,7 +1185,8 @@ class _PantallaResultados extends StatelessWidget {
   Widget _placeholder() => Container(
     color: const Color(0xFFF9FAFB),
     child: const Center(
-        child: Icon(Icons.fastfood_outlined, size: 32, color: Color(0xFFD1D5DB))),
+        child: Icon(Icons.fastfood_outlined,
+            size: 32, color: Color(0xFFD1D5DB))),
   );
 }
 
@@ -997,13 +1199,16 @@ class DetallePromocionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imagenes   = promocion['imagenes'] as List? ?? [];
-    final primeraImg = imagenes.isNotEmpty ? imagenes[0]['imagen_url'] as String? : null;
+    final primeraImg = imagenes.isNotEmpty
+        ? imagenes[0]['imagen_url'] as String?
+        : null;
 
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(minWidth: 280, maxWidth: 500),
         child: Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 6,
           child: SingleChildScrollView(
             child: Column(
@@ -1011,10 +1216,12 @@ class DetallePromocionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(16)),
                   child: primeraImg != null
                       ? ConstrainedBox(
-                          constraints: const BoxConstraints(minHeight: 180, maxHeight: 300),
+                          constraints: const BoxConstraints(
+                              minHeight: 180, maxHeight: 300),
                           child: Image.network(primeraImg,
                               fit: BoxFit.cover, width: double.infinity),
                         )
@@ -1034,18 +1241,24 @@ class DetallePromocionCard extends StatelessWidget {
                     children: [
                       Text(promocion['nombre'] ?? '',
                           style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold, color: _kAzul)),
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: _kAzul)),
                       const SizedBox(height: 8),
                       Text(promocion['descripcion'] ?? 'Sin descripción',
-                          style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                          style: const TextStyle(
+                              fontSize: 14, color: Colors.black87)),
                       const SizedBox(height: 12),
                       if (promocion['precio_oferta'] != null)
                         Text('\$${promocion['precio_oferta']}',
                             style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.w700, color: _kDorado)),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: _kDorado)),
                       const SizedBox(height: 8),
                       Text('Tienda: ${promocion['tienda_nombre'] ?? ''}',
-                          style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                          style: const TextStyle(
+                              fontSize: 13, color: Colors.grey)),
                       const SizedBox(height: 20),
                       Align(
                         alignment: Alignment.centerRight,

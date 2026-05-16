@@ -1,161 +1,215 @@
-const pool   = require('../config/db');
-const path   = require('path');
-const fs     = require('fs');
+const pool = require('../config/db');
 
-// ─── Helper: adjunta platos a cada menú ────────────────────────────────────────
-const _adjuntarPlatos = async (menus) => {
-  if (!menus.length) return menus;
-  const ids = menus.map((m) => m.id);
-  const { rows } = await pool.query(
-    `SELECT * FROM menu_casino_platos
-     WHERE menu_id = ANY($1::uuid[])
-     ORDER BY menu_id, orden ASC, creado_en ASC`,
-    [ids]
-  );
-  const porMenu = {};
-  rows.forEach((p) => {
-    if (!porMenu[p.menu_id]) porMenu[p.menu_id] = [];
-    porMenu[p.menu_id].push(p);
-  });
-  return menus.map((m) => ({ ...m, platos: porMenu[m.id] ?? [] }));
-};
-
-// ─── Helper: verificar propiedad del menú ─────────────────────────────────────
-const _verificarDuenio = async (menuId, usuarioId) => {
-  const { rows } = await pool.query(
-    `SELECT mc.id FROM menu_casino mc
-     JOIN tiendas t ON t.id = mc.tienda_id
-     JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
-     WHERE mc.id = $1 AND t.duenio_id = $2 AND tt.es_casino = true`,
-    [menuId, usuarioId]
-  );
-  return rows.length > 0;
-};
-
-// ─── Helper: verificar propiedad de la tienda ─────────────────────────────────
-const _verificarTienda = async (tiendaId, usuarioId) => {
-  const { rows } = await pool.query(
-    `SELECT t.id FROM tiendas t
-     JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
-     WHERE t.id = $1 AND t.duenio_id = $2 AND tt.es_casino = true`,
-    [tiendaId, usuarioId]
-  );
-  return rows.length > 0;
-};
-
-// ─── Helper: borrar imagen del disco ──────────────────────────────────────────
-const _borrarImagen = (imagenUrl) => {
-  if (!imagenUrl) return;
-  try {
-    const filename = path.basename(imagenUrl);
-    const filepath = path.join(__dirname, '..', 'uploads', filename);
-    if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
-  } catch (_) {}
-};
-
-// ══════════════════════════════════════════════════════════════════════════════
-// MENÚ CASINO
-// ══════════════════════════════════════════════════════════════════════════════
-
-// GET /api/menu-casino/hoy  (alumnos)
+// GET /api/menu-casino/hoy (público - para alumnos)
 const listarMenuCasinoHoy = async (req, res) => {
   try {
-    const { rows } = await pool.query(
+    const menus = await pool.query(
       `SELECT mc.*, t.nombre AS tienda_nombre
        FROM menu_casino mc
        JOIN tiendas t ON t.id = mc.tienda_id
        WHERE mc.fecha = CURRENT_DATE AND t.activa = true
        ORDER BY t.nombre`
     );
-    const menus = await _adjuntarPlatos(rows);
-    res.json(menus);
+
+    const result = await Promise.all(menus.rows.map(async (menu) => {
+      const platos = await pool.query(
+        `SELECT p.*,
+                ROUND(AVG(r.calificacion)::numeric, 1) AS valoracion_media,
+                COUNT(r.id) AS total_resenias
+         FROM menu_casino_platos p
+         LEFT JOIN resenias_platos r ON r.plato_id = p.id
+         WHERE p.menu_id = $1
+         GROUP BY p.id
+         ORDER BY p.orden, p.creado_en`,
+        [menu.id]
+      );
+      return { ...menu, platos: platos.rows };
+    }));
+
+    res.json(result);
   } catch (error) {
     console.error('Error listando menú casino hoy:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
 
-// GET /api/menu-casino/tienda/:id  (dueño)
+// GET /api/menu-casino/tienda/:id (dueño casino)
 const listarMenusCasino = async (req, res) => {
   const { id } = req.params;
   try {
-    if (!(await _verificarTienda(id, req.usuario.id))) {
+    const tienda = await pool.query(
+      `SELECT t.id FROM tiendas t
+       JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
+       WHERE t.id = $1 AND t.duenio_id = $2 AND tt.es_casino = true`,
+      [id, req.usuario.id]
+    );
+    if (tienda.rows.length === 0) {
       return res.status(403).json({ error: 'No tienes permiso para esta tienda' });
     }
-    const { rows } = await pool.query(
+
+    const menus = await pool.query(
       `SELECT * FROM menu_casino WHERE tienda_id = $1 ORDER BY fecha DESC`,
       [id]
     );
-    const menus = await _adjuntarPlatos(rows);
-    res.json(menus);
+
+    const result = await Promise.all(menus.rows.map(async (menu) => {
+      const platos = await pool.query(
+        `SELECT p.*,
+                ROUND(AVG(r.calificacion)::numeric, 1) AS valoracion_media,
+                COUNT(r.id) AS total_resenias
+         FROM menu_casino_platos p
+         LEFT JOIN resenias_platos r ON r.plato_id = p.id
+         WHERE p.menu_id = $1
+         GROUP BY p.id
+         ORDER BY p.orden, p.creado_en`,
+        [menu.id]
+      );
+      return { ...menu, platos: platos.rows };
+    }));
+
+    res.json(result);
   } catch (error) {
     console.error('Error listando menús casino:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
 
-// POST /api/menu-casino  (dueño)
+// POST /api/menu-casino
 const crearMenuCasino = async (req, res) => {
-  const { tienda_id, fecha, precio } = req.body;
-  if (!tienda_id || !fecha) {
-    return res.status(400).json({ error: 'tienda_id y fecha son requeridos' });
+  const { tienda_id, fecha, nombre, descripcion, platos } = req.body;
+
+  if (!tienda_id || !fecha || !nombre) {
+    return res.status(400).json({ error: 'tienda_id, fecha y nombre son requeridos' });
   }
+
+  const client = await pool.connect();
   try {
-    if (!(await _verificarTienda(tienda_id, req.usuario.id))) {
+    await client.query('BEGIN');
+
+    const tienda = await client.query(
+      `SELECT t.id FROM tiendas t
+       JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
+       WHERE t.id = $1 AND t.duenio_id = $2 AND tt.es_casino = true`,
+      [tienda_id, req.usuario.id]
+    );
+    if (tienda.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(403).json({ error: 'No tienes permiso para esta tienda' });
     }
-    const { rows } = await pool.query(
-      `INSERT INTO menu_casino (tienda_id, fecha, precio)
-       VALUES ($1, $2, $3) RETURNING *`,
-      [tienda_id, fecha, precio || null]
+
+    const menuResult = await client.query(
+      `INSERT INTO menu_casino (tienda_id, fecha, nombre, descripcion)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [tienda_id, fecha, nombre, descripcion || null]
     );
-    res.status(201).json({ ...rows[0], platos: [] });
+    const menu = menuResult.rows[0];
+
+    if (platos && platos.length > 0) {
+      for (let i = 0; i < platos.length; i++) {
+        const p = platos[i];
+        await client.query(
+          `INSERT INTO menu_casino_platos (menu_id, nombre, descripcion, imagen_url, precio, etiqueta, orden)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [menu.id, p.nombre, p.descripcion || null, p.imagen_url || null, p.precio || null, p.etiqueta || null, i]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    const platosResult = await pool.query(
+      `SELECT * FROM menu_casino_platos WHERE menu_id = $1 ORDER BY orden`,
+      [menu.id]
+    );
+    res.status(201).json({ ...menu, platos: platosResult.rows });
   } catch (error) {
+    await client.query('ROLLBACK');
     if (error.code === '23505') {
       return res.status(409).json({ error: 'Ya existe un menú para esa fecha' });
     }
     console.error('Error creando menú casino:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    client.release();
   }
 };
 
-// PUT /api/menu-casino/:id  (dueño) — solo actualiza fecha y precio
+// PUT /api/menu-casino/:id
 const editarMenuCasino = async (req, res) => {
   const { id } = req.params;
-  const { fecha, precio } = req.body;
-  if (!fecha) return res.status(400).json({ error: 'La fecha es requerida' });
+  const { fecha, nombre, descripcion, platos } = req.body;
+
+  if (!fecha || !nombre) {
+    return res.status(400).json({ error: 'fecha y nombre son requeridos' });
+  }
+
+  const client = await pool.connect();
   try {
-    if (!(await _verificarDuenio(id, req.usuario.id))) {
+    await client.query('BEGIN');
+
+    const check = await client.query(
+      `SELECT mc.id FROM menu_casino mc
+       JOIN tiendas t ON t.id = mc.tienda_id
+       JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
+       WHERE mc.id = $1 AND t.duenio_id = $2 AND tt.es_casino = true`,
+      [id, req.usuario.id]
+    );
+    if (check.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(403).json({ error: 'No tienes permiso para editar este menú' });
     }
-    const { rows } = await pool.query(
-      `UPDATE menu_casino SET fecha = $1, precio = $2 WHERE id = $3 RETURNING *`,
-      [fecha, precio || null, id]
+
+    await client.query(
+      `UPDATE menu_casino SET fecha = $1, nombre = $2, descripcion = $3 WHERE id = $4`,
+      [fecha, nombre, descripcion || null, id]
     );
-    const menus = await _adjuntarPlatos(rows);
-    res.json(menus[0]);
+
+    await client.query('DELETE FROM menu_casino_platos WHERE menu_id = $1', [id]);
+    if (platos && platos.length > 0) {
+      for (let i = 0; i < platos.length; i++) {
+        const p = platos[i];
+        await client.query(
+          `INSERT INTO menu_casino_platos (menu_id, nombre, descripcion, imagen_url, precio, etiqueta, orden)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [id, p.nombre, p.descripcion || null, p.imagen_url || null, p.precio || null, p.etiqueta || null, i]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    const platosResult = await pool.query(
+      `SELECT * FROM menu_casino_platos WHERE menu_id = $1 ORDER BY orden`,
+      [id]
+    );
+    const menuResult = await pool.query(`SELECT * FROM menu_casino WHERE id = $1`, [id]);
+    res.json({ ...menuResult.rows[0], platos: platosResult.rows });
   } catch (error) {
+    await client.query('ROLLBACK');
     if (error.code === '23505') {
       return res.status(409).json({ error: 'Ya existe un menú para esa fecha' });
     }
     console.error('Error editando menú casino:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    client.release();
   }
 };
 
-// DELETE /api/menu-casino/:id  (dueño)
+// DELETE /api/menu-casino/:id
 const eliminarMenuCasino = async (req, res) => {
   const { id } = req.params;
   try {
-    if (!(await _verificarDuenio(id, req.usuario.id))) {
+    const check = await pool.query(
+      `SELECT mc.id FROM menu_casino mc
+       JOIN tiendas t ON t.id = mc.tienda_id
+       JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
+       WHERE mc.id = $1 AND t.duenio_id = $2 AND tt.es_casino = true`,
+      [id, req.usuario.id]
+    );
+    if (check.rows.length === 0) {
       return res.status(403).json({ error: 'No tienes permiso para eliminar este menú' });
     }
-    // Borrar imágenes de platos del disco
-    const { rows: platos } = await pool.query(
-      `SELECT imagen_url FROM menu_casino_platos WHERE menu_id = $1`, [id]
-    );
-    platos.forEach((p) => _borrarImagen(p.imagen_url));
-
     await pool.query('DELETE FROM menu_casino WHERE id = $1', [id]);
     res.json({ mensaje: 'Menú eliminado correctamente' });
   } catch (error) {
@@ -164,109 +218,27 @@ const eliminarMenuCasino = async (req, res) => {
   }
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PLATOS  (sub-recurso de menú)
-// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/menu-casino/platos/:id/resenias (alumno valora un plato)
+const crearResenia = async (req, res) => {
+  const { id } = req.params;
+  const { calificacion, comentario } = req.body;
 
-// POST /api/menu-casino/:menuId/platos
-// Body: multipart/form-data  → nombre, descripcion?, orden?  + archivo "imagen"
-const agregarPlato = async (req, res) => {
-  const { menuId } = req.params;
-  const { nombre, descripcion, orden } = req.body;
-
-  if (!nombre?.trim()) {
-    if (req.file) _borrarImagen(`/uploads/${req.file.filename}`);
-    return res.status(400).json({ error: 'El nombre del plato es requerido' });
+  if (!calificacion || calificacion < 1 || calificacion > 5) {
+    return res.status(400).json({ error: 'Calificación debe ser entre 1 y 5' });
   }
 
   try {
-    if (!(await _verificarDuenio(menuId, req.usuario.id))) {
-      if (req.file) _borrarImagen(`/uploads/${req.file.filename}`);
-      return res.status(403).json({ error: 'No tienes permiso para este menú' });
-    }
-
-    const imagenUrl = req.file
-      ? `${process.env.BASE_URL || 'http://localhost:3000'}/uploads/${req.file.filename}`
-      : null;
-
-    const { rows } = await pool.query(
-      `INSERT INTO menu_casino_platos (menu_id, nombre, descripcion, imagen_url, orden)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [menuId, nombre.trim(), descripcion?.trim() || null, imagenUrl, orden ?? 0]
+    const result = await pool.query(
+      `INSERT INTO resenias_platos (usuario_id, plato_id, calificacion, comentario)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (usuario_id, plato_id)
+       DO UPDATE SET calificacion = $3, comentario = $4
+       RETURNING *`,
+      [req.usuario.id, id, calificacion, comentario || null]
     );
-    res.status(201).json(rows[0]);
+    res.status(201).json(result.rows[0]);
   } catch (error) {
-    if (req.file) _borrarImagen(`/uploads/${req.file.filename}`);
-    console.error('Error agregando plato:', error.message);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-};
-
-// PUT /api/menu-casino/platos/:platoId
-// Body: multipart/form-data  → nombre?, descripcion?, orden?  + archivo "imagen"?
-const editarPlato = async (req, res) => {
-  const { platoId } = req.params;
-  const { nombre, descripcion, orden } = req.body;
-
-  try {
-    // Verificar que el plato pertenece a una tienda del usuario
-    const { rows: check } = await pool.query(
-      `SELECT p.*, mc.id AS menu_id FROM menu_casino_platos p
-       JOIN menu_casino mc ON mc.id = p.menu_id
-       JOIN tiendas t ON t.id = mc.tienda_id
-       WHERE p.id = $1 AND t.duenio_id = $2`,
-      [platoId, req.usuario.id]
-    );
-    if (!check.length) {
-      if (req.file) _borrarImagen(`/uploads/${req.file.filename}`);
-      return res.status(403).json({ error: 'No tienes permiso para este plato' });
-    }
-
-    const plato = check[0];
-    let imagenUrl = plato.imagen_url;
-
-    if (req.file) {
-      // Borrar imagen anterior del disco
-      _borrarImagen(plato.imagen_url);
-      imagenUrl = `${process.env.BASE_URL || 'http://localhost:3000'}/uploads/${req.file.filename}`;
-    }
-
-    const { rows } = await pool.query(
-      `UPDATE menu_casino_platos SET
-         nombre      = COALESCE($1, nombre),
-         descripcion = COALESCE($2, descripcion),
-         imagen_url  = $3,
-         orden       = COALESCE($4, orden)
-       WHERE id = $5 RETURNING *`,
-      [nombre?.trim() || null, descripcion?.trim() || null, imagenUrl, orden ?? null, platoId]
-    );
-    res.json(rows[0]);
-  } catch (error) {
-    if (req.file) _borrarImagen(`/uploads/${req.file.filename}`);
-    console.error('Error editando plato:', error.message);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-};
-
-// DELETE /api/menu-casino/platos/:platoId
-const eliminarPlato = async (req, res) => {
-  const { platoId } = req.params;
-  try {
-    const { rows: check } = await pool.query(
-      `SELECT p.imagen_url FROM menu_casino_platos p
-       JOIN menu_casino mc ON mc.id = p.menu_id
-       JOIN tiendas t ON t.id = mc.tienda_id
-       WHERE p.id = $1 AND t.duenio_id = $2`,
-      [platoId, req.usuario.id]
-    );
-    if (!check.length) {
-      return res.status(403).json({ error: 'No tienes permiso para este plato' });
-    }
-    _borrarImagen(check[0].imagen_url);
-    await pool.query('DELETE FROM menu_casino_platos WHERE id = $1', [platoId]);
-    res.json({ mensaje: 'Plato eliminado correctamente' });
-  } catch (error) {
-    console.error('Error eliminando plato:', error.message);
+    console.error('Error creando reseña plato:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
@@ -277,7 +249,5 @@ module.exports = {
   crearMenuCasino,
   editarMenuCasino,
   eliminarMenuCasino,
-  agregarPlato,
-  editarPlato,
-  eliminarPlato,
+  crearResenia,
 };

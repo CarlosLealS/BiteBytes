@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:html' as html;
 import 'package:http/http.dart' as http;
+import 'package:bitebytes_app/config/env.dart';
+import 'package:bitebytes_app/login.dart';
 
 const _kAzul    = Color(0xFF001455);
 const _kNaranja = Color(0xFFE8751A);
-const _kBase    = 'http://172.16.13.105:3000';
+final _kBase    = Env.apiUrl;
 
 const double _mapAncho = 1600.0;
 const double _mapAlto  = 900.0;
@@ -383,7 +386,8 @@ class _DetallesTiendaModalState extends State<DetallesTiendaModal> {
 
 class PerfilModal extends StatelessWidget {
   final Map<String, dynamic>? usuario;
-  const PerfilModal({super.key, this.usuario});
+  final VoidCallback? onLogout;
+  const PerfilModal({super.key, this.usuario, this.onLogout});
 
   @override
   Widget build(BuildContext context) {
@@ -443,10 +447,7 @@ class PerfilModal extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
-              },
+              onPressed: onLogout,
               icon: const Icon(Icons.logout, size: 18),
               label: const Text('Cerrar sesión',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
