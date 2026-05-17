@@ -197,10 +197,6 @@ const obtenerPublicacionesActivas = async (req, res) => {
        FROM publicaciones p
        JOIN tiendas t ON t.id = p.tienda_id`
     );
-    console.log('🔍 DEBUG todas las publicaciones:');
-    debug.rows.forEach((r, i) => {
-      console.log(`  [${i}] ${r.nombre} | tienda=${r.tienda} | activa=${r.activa} | tienda_activa=${r.tienda_activa} | ya_inicio=${r.ya_inicio} | no_expirada=${r.no_expirada}`);
-    });
 
     const result = await pool.query(
       `SELECT p.*,
@@ -223,14 +219,9 @@ const obtenerPublicacionesActivas = async (req, res) => {
        ORDER BY p.publicar_en DESC`
     );
 
-    console.log(`✅ Publicaciones ACTIVAS devueltas: ${result.rows.length}`);
-    result.rows.forEach((pub, i) => {
-      console.log(`  [${i}] ${pub.nombre} (${pub.tienda_nombre}) - ${pub.imagenes.length} imágenes`);
-    });
-
     res.json(result.rows);
   } catch (error) {
-    console.error('❌ Error obteniendo publicaciones activas:', error.message);
+    console.error('Error obteniendo publicaciones activas:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
