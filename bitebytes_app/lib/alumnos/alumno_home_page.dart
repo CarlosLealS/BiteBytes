@@ -5,10 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:bitebytes_app/config/env.dart';
 import '../login.dart';
 import 'search_page.dart';
+import 'tienda_detalle_page.dart';
+import 'tienda_modal.dart';
 
 const _kAzul   = Color(0xFF0B1F5C);
 const _kDorado = Color(0xFFF5A623);
-final _kBase   = Env.apiUrl;
+
+// ─── Página principal ──────────────────────────────────────────────────────────
 
 class AlumnoHomePage extends StatefulWidget {
   final Map<String, dynamic> usuario;
@@ -19,14 +22,19 @@ class AlumnoHomePage extends StatefulWidget {
 }
 
 class _AlumnoHomePageState extends State<AlumnoHomePage> {
-  int _seccionActual = 0;
-  bool _cargando = true;
+  int  _seccionActual = 0;
+  bool _cargando      = true;
+
   List<Map<String, dynamic>> _menusCasino        = [];
   List<Map<String, dynamic>> _publicaciones      = [];
   List<Map<String, dynamic>> _tiendas            = [];
   List<Map<String, dynamic>> _resultadosBusqueda = [];
+
   final _busquedaCtrl = TextEditingController();
   bool _buscando = false;
+
+  String get _token    => widget.usuario['token'] ?? '';
+  Map<String, String> get _headers => {'Authorization': 'Bearer $_token'};
 
   @override
   void initState() {
@@ -43,32 +51,20 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
   Future<void> _cargarDatos() async {
     setState(() => _cargando = true);
     try {
-      final token   = widget.usuario['token'] ?? '';
-      final headers = {'Authorization': 'Bearer $token'};
-      print('Token: $token');
-      print('Base URL: $_kBase');
-      
-      final res = await Future.wait([
-        http.get(Uri.parse('$_kBase/api/menu-casino/hoy'),       headers: headers),
-        http.get(Uri.parse('$_kBase/api/publicaciones/activas'), headers: headers),
-        http.get(Uri.parse('$_kBase/api/tiendas'),               headers: headers),
+      final base = Env.apiUrl;
+      final res  = await Future.wait([
+        http.get(Uri.parse('$base/api/menu-casino/hoy'),       headers: _headers),
+        http.get(Uri.parse('$base/api/publicaciones/activas'), headers: _headers),
+        http.get(Uri.parse('$base/api/tiendas'),               headers: _headers),
       ]);
-      
-      print('Respuestas recibidas:');
-      print('Menú Casino: ${res[0].statusCode} - ${res[0].body}');
-      print('Publicaciones: ${res[1].statusCode} - ${res[1].body}');
-      print('Tiendas: ${res[2].statusCode} - ${res[2].body}');
-      
       if (!mounted) return;
       setState(() {
-        _menusCasino   = List<Map<String, dynamic>>.from(jsonDecode(res[0].body) as List? ?? []);
-        _publicaciones = List<Map<String, dynamic>>.from(jsonDecode(res[1].body) as List? ?? []);
-        _tiendas       = List<Map<String, dynamic>>.from(jsonDecode(res[2].body) as List? ?? []);
+        _menusCasino   = _parseList(res[0].body);
+        _publicaciones = _parseList(res[1].body);
+        _tiendas       = _parseList(res[2].body);
         _cargando      = false;
-        print('Datos cargados: menús=${_menusCasino.length}, publicaciones=${_publicaciones.length}, tiendas=${_tiendas.length}');
       });
-    } catch (e) {
-      print('Error cargando datos: $e');
+    } catch (_) {
       if (!mounted) return;
       setState(() => _cargando = false);
     }
@@ -81,15 +77,14 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
     }
     setState(() => _buscando = true);
     try {
-      final token = widget.usuario['token'] ?? '';
       final res = await http.get(
-        Uri.parse('$_kBase/api/productos/buscar?q=${Uri.encodeComponent(query)}'),
-        headers: {'Authorization': 'Bearer $token'},
+        Uri.parse('${Env.apiUrl}/api/productos/buscar?q=${Uri.encodeComponent(query)}'),
+        headers: _headers,
       );
       if (!mounted) return;
       setState(() {
-        _resultadosBusqueda = List<Map<String, dynamic>>.from(jsonDecode(res.body) as List? ?? []);
-        _buscando = false;
+        _resultadosBusqueda = _parseList(res.body);
+        _buscando           = false;
       });
     } catch (_) {
       if (!mounted) return;
@@ -99,37 +94,30 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
 
   Future<void> _cerrarSesion() async {
     try {
-      final token = widget.usuario['token'] ?? '';
-      if (token.isEmpty) {
-        _limpiarURLYNavegar();
-        return;
-      }
-
       await http.post(
-        Uri.parse('$_kBase/api/auth/logout'),
-        headers: {'Authorization': 'Bearer $token'},
+        Uri.parse('${Env.apiUrl}/api/auth/logout'),
+        headers: _headers,
       );
-    } catch (_) {
-      // Aunque haya error, procedemos a navegar
-    } finally {
-      if (mounted) {
-        _limpiarURLYNavegar();
-      }
-    }
-  }
-
-  void _limpiarURLYNavegar() {
-    // Limpiar parámetros de URL para evitar redirección automática
+    } catch (_) {}
+    if (!mounted) return;
     html.window.history.replaceState(null, '', Uri.base.toString().split('?')[0]);
-    _navegarAlLogin();
-  }
-
-  void _navegarAlLogin() {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginPage()),
       (route) => false,
     );
   }
+
+  void _irATienda(String tiendaId) {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => TiendaDetallePage(
+        tiendaId: tiendaId,
+        usuario:  widget.usuario,
+      ),
+    ));
+  }
+
+  List<Map<String, dynamic>> _parseList(String body) =>
+      List<Map<String, dynamic>>.from(jsonDecode(body) as List? ?? []);
 
   @override
   Widget build(BuildContext context) {
@@ -138,27 +126,30 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
       body: Column(
         children: [
           _Navbar(
-            usuario: widget.usuario,
+            usuario:      widget.usuario,
             seccionActual: _seccionActual,
-            onSeccion: (i) => setState(() => _seccionActual = i),
+            onSeccion:    (i) => setState(() => _seccionActual = i),
             busquedaCtrl: _busquedaCtrl,
-            onBuscar: _buscarProductos,
-            onLogout: _cerrarSesion,
+            onBuscar:     _buscarProductos,
+            onLogout:     _cerrarSesion,
           ),
           Expanded(
             child: _busquedaCtrl.text.isNotEmpty
                 ? _PantallaResultados(
-                    query: _busquedaCtrl.text,
+                    query:     _busquedaCtrl.text,
                     resultados: _resultadosBusqueda,
-                    buscando: _buscando,
+                    buscando:  _buscando,
+                    usuario:   widget.usuario,
+                    onIrTienda: _irATienda,
                   )
                 : _seccionActual == 0
                     ? _PantallaInicio(
-                        cargando: _cargando,
-                        menusCasino: _menusCasino,
+                        cargando:      _cargando,
+                        menusCasino:   _menusCasino,
                         publicaciones: _publicaciones,
-                        tiendas: _tiendas,
-                        onRefresh: _cargarDatos,
+                        tiendas:       _tiendas,
+                        onRefresh:     _cargarDatos,
+                        onIrTienda:    _irATienda,
                       )
                     : _PantallaMapa(usuario: widget.usuario),
           ),
@@ -190,7 +181,7 @@ class _Navbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nombre   = usuario['nombre'] as String? ?? 'U';
-    final iniciales = nombre.isNotEmpty ? nombre[0].toUpperCase() : 'U';
+    final inicial  = nombre.isNotEmpty ? nombre[0].toUpperCase() : 'U';
 
     return Container(
       height: 56,
@@ -203,10 +194,12 @@ class _Navbar extends StatelessWidget {
           const Text('BiteBytes',
               style: TextStyle(color: _kDorado, fontSize: 15, fontWeight: FontWeight.w500)),
           const SizedBox(width: 20),
-          _navLink('Inicio', 0, seccionActual, onSeccion),
+          _navLink('Inicio', 0),
           const SizedBox(width: 4),
-          _navLink('Mapa', 1, seccionActual, onSeccion),
+          _navLink('Mapa', 1),
           const SizedBox(width: 16),
+
+          // Buscador
           Expanded(
             child: Container(
               height: 34,
@@ -248,6 +241,8 @@ class _Navbar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
+
+          // Avatar
           GestureDetector(
             onTap: () => showModalBottomSheet(
               context: context,
@@ -258,7 +253,7 @@ class _Navbar extends StatelessWidget {
             child: CircleAvatar(
               radius: 15,
               backgroundColor: _kDorado.withOpacity(0.2),
-              child: Text(iniciales,
+              child: Text(inicial,
                   style: const TextStyle(
                       color: _kDorado, fontSize: 12, fontWeight: FontWeight.w500)),
             ),
@@ -268,10 +263,10 @@ class _Navbar extends StatelessWidget {
     );
   }
 
-  Widget _navLink(String label, int index, int actual, ValueChanged<int> onTap) {
-    final activo = actual == index;
+  Widget _navLink(String label, int index) {
+    final activo = seccionActual == index;
     return GestureDetector(
-      onTap: () => onTap(index),
+      onTap: () => onSeccion(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -298,6 +293,7 @@ class _PantallaInicio extends StatefulWidget {
   final List<Map<String, dynamic>> publicaciones;
   final List<Map<String, dynamic>> tiendas;
   final Future<void> Function() onRefresh;
+  final ValueChanged<String> onIrTienda;
 
   const _PantallaInicio({
     required this.cargando,
@@ -305,6 +301,7 @@ class _PantallaInicio extends StatefulWidget {
     required this.publicaciones,
     required this.tiendas,
     required this.onRefresh,
+    required this.onIrTienda,
   });
 
   @override
@@ -325,7 +322,6 @@ class _PantallaInicioState extends State<_PantallaInicio> {
     if (widget.cargando) {
       return const Center(child: CircularProgressIndicator(color: _kDorado));
     }
-
     return RefreshIndicator(
       color: _kDorado,
       onRefresh: widget.onRefresh,
@@ -348,20 +344,23 @@ class _PantallaInicioState extends State<_PantallaInicio> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (widget.menusCasino.isNotEmpty) ...[
-                    _seccionTitulo('Menú Casino — hoy', Icons.restaurant_outlined),
+                    _titulo('Menú Casino — hoy', Icons.restaurant_outlined),
                     const SizedBox(height: 12),
-                    _MenuCasinoGrid(menus: widget.menusCasino),
+                    _MenuCasinoList(menus: widget.menusCasino),
                     const SizedBox(height: 24),
                   ],
                   if (widget.publicaciones.isNotEmpty) ...[
-                    _seccionTitulo('Publicaciones activas', Icons.campaign_outlined),
+                    _titulo('Publicaciones activas', Icons.campaign_outlined),
                     const SizedBox(height: 12),
                     _CarruselPublicaciones(publicaciones: widget.publicaciones),
                     const SizedBox(height: 24),
                   ],
-                  _seccionTitulo('Tiendas del campus', Icons.store_outlined),
+                  _titulo('Tiendas del campus', Icons.store_outlined),
                   const SizedBox(height: 12),
-                  _GridTiendas(tiendas: widget.tiendas),
+                  _GridTiendas(
+                    tiendas: widget.tiendas,
+                    onIrTienda: widget.onIrTienda,
+                  ),
                 ],
               ),
             ),
@@ -371,17 +370,15 @@ class _PantallaInicioState extends State<_PantallaInicio> {
     );
   }
 
-  Widget _seccionTitulo(String label, IconData icono) {
-    return Row(
-      children: [
-        Icon(icono, size: 16, color: _kDorado),
-        const SizedBox(width: 6),
-        Text(label,
-            style: const TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
-      ],
-    );
-  }
+  Widget _titulo(String label, IconData icono) => Row(
+    children: [
+      Icon(icono, size: 16, color: _kDorado),
+      const SizedBox(width: 6),
+      Text(label,
+          style: const TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+    ],
+  );
 }
 
 // ─── Banner hero ───────────────────────────────────────────────────────────────
@@ -419,34 +416,24 @@ class _BannerHero extends StatelessWidget {
               children: [
                 const Text('Bite Bytes',
                     style: TextStyle(
-                      fontSize: 44,
-                      fontFamily: 'FugazOne',
-                      color: Colors.white,
-                      height: 1.1,
-                    )),
+                        fontSize: 44, fontFamily: 'FugazOne',
+                        color: Colors.white, height: 1.1)),
                 const SizedBox(height: 8),
-                const Text(
-                  'Descubre las mejores promociones\ncerca de ti',
-                  style: TextStyle(fontSize: 14, color: Colors.white70, height: 1.5),
-                ),
+                const Text('Descubre las mejores promociones\ncerca de ti',
+                    style: TextStyle(fontSize: 14, color: Colors.white70, height: 1.5)),
                 const SizedBox(height: 18),
                 GestureDetector(
                   onTap: onVerOfertas,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
                     decoration: BoxDecoration(
-                      color: _kDorado,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+                        color: _kDorado, borderRadius: BorderRadius.circular(20)),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text('Ver ofertas',
-                            style: TextStyle(
-                              color: _kAzul,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            )),
+                            style: TextStyle(color: _kAzul, fontSize: 13,
+                                fontWeight: FontWeight.w600)),
                         SizedBox(width: 4),
                         Icon(Icons.arrow_forward, size: 14, color: _kAzul),
                       ],
@@ -462,11 +449,11 @@ class _BannerHero extends StatelessWidget {
   }
 }
 
-// ─── Menú Casino Grid ──────────────────────────────────────────────────────────
+// ─── Menú Casino ───────────────────────────────────────────────────────────────
 
-class _MenuCasinoGrid extends StatelessWidget {
+class _MenuCasinoList extends StatelessWidget {
   final List<Map<String, dynamic>> menus;
-  const _MenuCasinoGrid({required this.menus});
+  const _MenuCasinoList({required this.menus});
 
   @override
   Widget build(BuildContext context) {
@@ -490,7 +477,6 @@ class _MenuCasinoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final nombre  = menu['nombre'] as String? ?? menu['tienda_nombre'] as String? ?? 'Casino';
     final platos  = (menu['platos'] as List? ?? []).cast<Map<String, dynamic>>();
-    // Muestra hasta 3 platos en la tarjeta
     final preview = platos.take(3).toList();
 
     return GestureDetector(
@@ -508,26 +494,20 @@ class _MenuCasinoCard extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
-            BoxShadow(
-              color: _kAzul.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
+            BoxShadow(color: _kAzul.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
           ],
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Cabecera
             Row(
               children: [
                 Container(
                   width: 32, height: 32,
                   decoration: BoxDecoration(
-                    color: _kDorado.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                      color: _kDorado.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.restaurant, color: _kDorado, size: 16),
                 ),
                 const SizedBox(width: 8),
@@ -542,17 +522,12 @@ class _MenuCasinoCard extends StatelessWidget {
             const SizedBox(height: 10),
             const Divider(color: Colors.white12, height: 1),
             const SizedBox(height: 8),
-
-            // Platos preview
             if (preview.isEmpty)
               const Text('Sin platos registrados',
                   style: TextStyle(color: Colors.white38, fontSize: 11))
             else
               ...preview.map((p) => _platoRow(p)),
-
             const Spacer(),
-
-            // Footer
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -561,9 +536,8 @@ class _MenuCasinoCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10)),
                   child: const Text('Ver menú →',
                       style: TextStyle(color: Colors.white54, fontSize: 10)),
                 ),
@@ -576,32 +550,27 @@ class _MenuCasinoCard extends StatelessWidget {
   }
 
   Widget _platoRow(Map<String, dynamic> plato) {
-    final etiqueta = plato['etiqueta'] as String?;
-    final nombre   = plato['nombre']   as String? ?? '';
-    final precio   = plato['precio'];
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (etiqueta != null)
+          if (plato['etiqueta'] != null)
             SizedBox(
               width: 50,
-              child: Text(etiqueta,
+              child: Text(plato['etiqueta'],
                   style: TextStyle(
                       color: _kDorado.withOpacity(0.8),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500)),
+                      fontSize: 10, fontWeight: FontWeight.w500)),
             ),
           const SizedBox(width: 4),
           Expanded(
-            child: Text(nombre,
+            child: Text(plato['nombre'] ?? '',
                 style: const TextStyle(color: Colors.white70, fontSize: 10),
                 overflow: TextOverflow.ellipsis),
           ),
-          if (precio != null)
-            Text('\$$precio',
+          if (plato['precio'] != null)
+            Text('\$${plato['precio']}',
                 style: const TextStyle(
                     color: _kDorado, fontSize: 10, fontWeight: FontWeight.w600)),
         ],
@@ -610,17 +579,15 @@ class _MenuCasinoCard extends StatelessWidget {
   }
 }
 
-// ─── Detalle Menú Casino ───────────────────────────────────────────────────────
-
 class _MenuCasinoDetalle extends StatelessWidget {
   final Map<String, dynamic> menu;
   const _MenuCasinoDetalle({required this.menu});
 
   @override
   Widget build(BuildContext context) {
-    final nombre      = menu['nombre']        as String? ?? menu['tienda_nombre'] as String? ?? 'Casino';
+    final nombre      = menu['nombre'] as String? ?? menu['tienda_nombre'] as String? ?? 'Casino';
     final tienda      = menu['tienda_nombre'] as String? ?? '';
-    final descripcion = menu['descripcion']   as String?;
+    final descripcion = menu['descripcion'] as String?;
     final platos      = (menu['platos'] as List? ?? []).cast<Map<String, dynamic>>();
 
     return Dialog(
@@ -630,24 +597,20 @@ class _MenuCasinoDetalle extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
             Container(
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(
                 color: _kAzul,
                 borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
+                    topLeft: Radius.circular(16), topRight: Radius.circular(16)),
               ),
               child: Row(
                 children: [
                   Container(
                     width: 40, height: 40,
                     decoration: BoxDecoration(
-                      color: _kDorado.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                        color: _kDorado.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(10)),
                     child: const Icon(Icons.restaurant, color: _kDorado, size: 20),
                   ),
                   const SizedBox(width: 12),
@@ -657,13 +620,10 @@ class _MenuCasinoDetalle extends StatelessWidget {
                       children: [
                         Text(nombre,
                             style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white)),
+                                fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
                         if (tienda.isNotEmpty)
                           Text(tienda,
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.white54)),
+                              style: const TextStyle(fontSize: 12, color: Colors.white54)),
                       ],
                     ),
                   ),
@@ -674,8 +634,6 @@ class _MenuCasinoDetalle extends StatelessWidget {
                 ],
               ),
             ),
-
-            // Descripción
             if (descripcion != null && descripcion.isNotEmpty)
               Container(
                 width: double.infinity,
@@ -685,8 +643,6 @@ class _MenuCasinoDetalle extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 13, color: Colors.black54, fontStyle: FontStyle.italic)),
               ),
-
-            // Lista de platos
             Flexible(
               child: platos.isEmpty
                   ? const Center(
@@ -694,8 +650,7 @@ class _MenuCasinoDetalle extends StatelessWidget {
                         padding: EdgeInsets.all(32),
                         child: Text('Sin platos registrados',
                             style: TextStyle(color: Colors.grey)),
-                      ),
-                    )
+                      ))
                   : ListView.separated(
                       shrinkWrap: true,
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -705,8 +660,6 @@ class _MenuCasinoDetalle extends StatelessWidget {
                       itemBuilder: (_, i) => _PlatoTile(plato: platos[i]),
                     ),
             ),
-
-            // Botón cerrar
             Padding(
               padding: const EdgeInsets.all(16),
               child: SizedBox(
@@ -714,15 +667,11 @@ class _MenuCasinoDetalle extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _kAzul,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                    backgroundColor: _kAzul, foregroundColor: Colors.white, elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  child: const Text('Cerrar',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text('Cerrar', style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ),
             ),
@@ -752,87 +701,66 @@ class _PlatoTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Imagen o ícono
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
               width: 56, height: 56,
               child: imagenUrl != null && imagenUrl.isNotEmpty
                   ? Image.network(imagenUrl, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _iconoPlaceholder())
-                  : _iconoPlaceholder(),
+                      errorBuilder: (_, __, ___) => _placeholder())
+                  : _placeholder(),
             ),
           ),
           const SizedBox(width: 12),
-
-          // Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Etiqueta + nombre
                 Row(
                   children: [
                     if (etiqueta != null) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: _kDorado.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
+                            color: _kDorado.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(4)),
                         child: Text(etiqueta,
                             style: const TextStyle(
-                                fontSize: 9,
-                                color: _kDorado,
-                                fontWeight: FontWeight.w600)),
+                                fontSize: 9, color: _kDorado, fontWeight: FontWeight.w600)),
                       ),
                       const SizedBox(width: 6),
                     ],
                     Expanded(
                       child: Text(nombre,
                           style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 13, fontWeight: FontWeight.w600,
                               color: Color(0xFF111827)),
                           overflow: TextOverflow.ellipsis),
                     ),
                   ],
                 ),
-
-                // Descripción
                 if (descripcion != null && descripcion.isNotEmpty) ...[
                   const SizedBox(height: 3),
                   Text(descripcion,
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.grey),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
                 ],
-
                 const SizedBox(height: 6),
-
-                // Precio + valoración
                 Row(
                   children: [
                     if (precio != null)
                       Text('\$$precio',
                           style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: _kAzul)),
+                              fontSize: 13, fontWeight: FontWeight.w700, color: _kAzul)),
                     const Spacer(),
                     if (valoracion != null && valoracion.toString() != 'null') ...[
-                      const Icon(Icons.star_rounded,
-                          size: 14, color: _kDorado),
+                      const Icon(Icons.star_rounded, size: 14, color: _kDorado),
                       const SizedBox(width: 2),
                       Text(valoracion.toString(),
-                          style: const TextStyle(
-                              fontSize: 11, color: Colors.grey)),
-                      if (totalRes != null && int.tryParse(totalRes.toString())! > 0)
+                          style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      if (totalRes != null && (int.tryParse(totalRes.toString()) ?? 0) > 0)
                         Text(' ($totalRes)',
-                            style: const TextStyle(
-                                fontSize: 10, color: Colors.grey)),
+                            style: const TextStyle(fontSize: 10, color: Colors.grey)),
                     ],
                   ],
                 ),
@@ -844,11 +772,9 @@ class _PlatoTile extends StatelessWidget {
     );
   }
 
-  Widget _iconoPlaceholder() => Container(
+  Widget _placeholder() => Container(
     color: const Color(0xFFF3F4F6),
-    child: const Center(
-        child: Icon(Icons.restaurant_menu,
-            size: 24, color: Color(0xFFD1D5DB))),
+    child: const Center(child: Icon(Icons.restaurant_menu, size: 24, color: Color(0xFFD1D5DB))),
   );
 }
 
@@ -860,12 +786,6 @@ class _CarruselPublicaciones extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print('_CarruselPublicaciones: ${publicaciones.length} publicaciones');
-    for (var i = 0; i < publicaciones.length; i++) {
-      final pub = publicaciones[i];
-      print('Pub $i: ${pub['nombre']} - Tienda: ${pub['tienda_nombre']} - Imagenes: ${pub['imagenes']}');
-    }
-    
     return SizedBox(
       height: 190,
       child: ListView.separated(
@@ -885,10 +805,7 @@ class _PubCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imagenes   = pub['imagenes'] as List? ?? [];
-    print('_PubCard: imagenes recibidas = $imagenes');
     final primeraImg = imagenes.isNotEmpty ? imagenes[0]['imagen_url'] as String? : null;
-    print('_PubCard: primeraImg = $primeraImg');
-    
     final nombre     = pub['nombre'] ?? '';
     final precio     = pub['precio_oferta'];
     final tienda     = pub['tienda_nombre'] ?? '';
@@ -903,19 +820,14 @@ class _PubCard extends StatelessWidget {
           child: DetallePromocionCard(promocion: pub),
         ),
       ),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+      child: Container(
         width: 190,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2)),
           ],
         ),
         child: Column(
@@ -937,15 +849,11 @@ class _PubCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (tienda.isNotEmpty)
-                    Text(tienda,
-                        style: const TextStyle(
-                            fontSize: 10, color: Color(0xFF6B7280))),
+                    Text(tienda, style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
                   const SizedBox(height: 2),
                   Text(nombre,
                       style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF111827)),
+                          fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 8),
                   Row(
@@ -954,20 +862,15 @@ class _PubCard extends StatelessWidget {
                       if (precio != null)
                         Text('\$$precio',
                             style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: _kAzul)),
+                                fontSize: 14, fontWeight: FontWeight.w600, color: _kAzul)),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFDCFCE7),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
+                            color: const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(20)),
                         child: const Text('Activa',
                             style: TextStyle(
-                                fontSize: 9,
-                                color: Color(0xFF166534),
+                                fontSize: 9, color: Color(0xFF166534),
                                 fontWeight: FontWeight.w500)),
                       ),
                     ],
@@ -983,9 +886,7 @@ class _PubCard extends StatelessWidget {
 
   Widget _placeholder() => Container(
     color: const Color(0xFFF9FAFB),
-    child: const Center(
-        child: Icon(Icons.campaign_outlined,
-            size: 28, color: Color(0xFFD1D5DB))),
+    child: const Center(child: Icon(Icons.campaign_outlined, size: 28, color: Color(0xFFD1D5DB))),
   );
 }
 
@@ -993,7 +894,9 @@ class _PubCard extends StatelessWidget {
 
 class _GridTiendas extends StatelessWidget {
   final List<Map<String, dynamic>> tiendas;
-  const _GridTiendas({required this.tiendas});
+  final ValueChanged<String> onIrTienda;
+
+  const _GridTiendas({required this.tiendas, required this.onIrTienda});
 
   static Color _colorTipo(String tipo) {
     switch (tipo.toLowerCase()) {
@@ -1032,63 +935,61 @@ class _GridTiendas extends StatelessWidget {
       ),
       itemCount: tiendas.length,
       itemBuilder: (_, i) {
-        final t    = tiendas[i];
-        final tipo = t['tipo'] as String? ?? '';
+        final t     = tiendas[i];
+        final tipo  = t['tipo'] as String? ?? '';
         final color = _colorTipo(tipo);
+        final id    = t['id'] as String? ?? '';
 
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 38, height: 38,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
+        return InkWell(
+          onTap: () => onIrTienda(id),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6, offset: const Offset(0, 2)),
+              ],
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10)),
+                  child: Icon(_iconoTipo(tipo), size: 18, color: color),
                 ),
-                child: Icon(_iconoTipo(tipo), size: 18, color: color),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(t['nombre'] ?? '',
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF111827)),
-                        overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Container(
-                          width: 6, height: 6,
-                          decoration: BoxDecoration(
-                              color: color, shape: BoxShape.circle),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(tipo,
-                            style: TextStyle(fontSize: 10, color: color)),
-                      ],
-                    ),
-                  ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(t['nombre'] ?? '',
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600,
+                              color: Color(0xFF111827)),
+                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Container(
+                              width: 6, height: 6,
+                              decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                          const SizedBox(width: 4),
+                          Text(tipo, style: TextStyle(fontSize: 10, color: color)),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
+              ],
+            ),
           ),
         );
       },
@@ -1102,11 +1003,15 @@ class _PantallaResultados extends StatelessWidget {
   final String query;
   final List<Map<String, dynamic>> resultados;
   final bool buscando;
+  final Map<String, dynamic> usuario;
+  final ValueChanged<String> onIrTienda;
 
   const _PantallaResultados({
     required this.query,
     required this.resultados,
     required this.buscando,
+    required this.usuario,
+    required this.onIrTienda,
   });
 
   @override
@@ -1122,8 +1027,7 @@ class _PantallaResultados extends StatelessWidget {
             Icon(Icons.search_off, size: 56, color: Colors.grey.shade200),
             const SizedBox(height: 12),
             Text('Sin resultados para "$query"',
-                style: const TextStyle(
-                    color: Color(0xFF9CA3AF), fontSize: 14)),
+                style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14)),
           ],
         ),
       );
@@ -1134,65 +1038,62 @@ class _PantallaResultados extends StatelessWidget {
         maxCrossAxisExtent: 220,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        childAspectRatio: 0.85,
+        childAspectRatio: 0.82,
       ),
       itemCount: resultados.length,
       itemBuilder: (_, i) {
         final p         = resultados[i];
         final imagenUrl = p['imagen_url'] as String?;
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(12)),
-                child: SizedBox(
-                  height: 100, width: double.infinity,
-                  child: imagenUrl != null && imagenUrl.isNotEmpty
-                      ? Image.network(imagenUrl, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _placeholder())
-                      : _placeholder(),
+        final tiendaId  = p['tienda_id'] as String? ?? '';
+
+        return InkWell(
+          onTap: () => onIrTienda(tiendaId),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.05),
+                    blurRadius: 6, offset: const Offset(0, 2)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  child: SizedBox(
+                    height: 100, width: double.infinity,
+                    child: imagenUrl != null && imagenUrl.isNotEmpty
+                        ? Image.network(imagenUrl, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _placeholder())
+                        : _placeholder(),
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(p['tienda_nombre'] ?? '',
-                        style: const TextStyle(
-                            fontSize: 10, color: Color(0xFF6B7280))),
-                    const SizedBox(height: 2),
-                    Text(p['nombre'] ?? '',
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF111827)),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 6),
-                    Text('\$${p['precio'] ?? '-'}',
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: _kAzul)),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(p['tienda_nombre'] ?? '',
+                          style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+                      const SizedBox(height: 2),
+                      Text(p['nombre'] ?? '',
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w500,
+                              color: Color(0xFF111827)),
+                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 6),
+                      Text('\$${p['precio'] ?? '-'}',
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w500, color: _kAzul)),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -1201,9 +1102,7 @@ class _PantallaResultados extends StatelessWidget {
 
   Widget _placeholder() => Container(
     color: const Color(0xFFF9FAFB),
-    child: const Center(
-        child: Icon(Icons.fastfood_outlined,
-            size: 32, color: Color(0xFFD1D5DB))),
+    child: const Center(child: Icon(Icons.fastfood_outlined, size: 32, color: Color(0xFFD1D5DB))),
   );
 }
 
@@ -1216,16 +1115,13 @@ class DetallePromocionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imagenes   = promocion['imagenes'] as List? ?? [];
-    final primeraImg = imagenes.isNotEmpty
-        ? imagenes[0]['imagen_url'] as String?
-        : null;
+    final primeraImg = imagenes.isNotEmpty ? imagenes[0]['imagen_url'] as String? : null;
 
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(minWidth: 280, maxWidth: 500),
         child: Card(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 6,
           child: SingleChildScrollView(
             child: Column(
@@ -1233,21 +1129,17 @@ class DetallePromocionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                   child: primeraImg != null
                       ? ConstrainedBox(
-                          constraints: const BoxConstraints(
-                              minHeight: 180, maxHeight: 300),
+                          constraints: const BoxConstraints(minHeight: 180, maxHeight: 300),
                           child: Image.network(primeraImg,
                               fit: BoxFit.cover, width: double.infinity),
                         )
                       : Container(
-                          height: 160,
-                          color: Colors.grey.shade100,
+                          height: 160, color: Colors.grey.shade100,
                           child: const Center(
-                            child: Icon(Icons.image_not_supported,
-                                size: 48, color: Colors.grey),
+                            child: Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
                           ),
                         ),
                 ),
@@ -1258,31 +1150,24 @@ class DetallePromocionCard extends StatelessWidget {
                     children: [
                       Text(promocion['nombre'] ?? '',
                           style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: _kAzul)),
+                              fontSize: 20, fontWeight: FontWeight.bold, color: _kAzul)),
                       const SizedBox(height: 8),
                       Text(promocion['descripcion'] ?? 'Sin descripción',
-                          style: const TextStyle(
-                              fontSize: 14, color: Colors.black87)),
+                          style: const TextStyle(fontSize: 14, color: Colors.black87)),
                       const SizedBox(height: 12),
                       if (promocion['precio_oferta'] != null)
                         Text('\$${promocion['precio_oferta']}',
                             style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: _kDorado)),
+                                fontSize: 18, fontWeight: FontWeight.w700, color: _kDorado)),
                       const SizedBox(height: 8),
                       Text('Tienda: ${promocion['tienda_nombre'] ?? ''}',
-                          style: const TextStyle(
-                              fontSize: 13, color: Colors.grey)),
+                          style: const TextStyle(fontSize: 13, color: Colors.grey)),
                       const SizedBox(height: 20),
                       Align(
                         alignment: Alignment.centerRight,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _kAzul,
-                            foregroundColor: Colors.white,
+                            backgroundColor: _kAzul, foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10)),
@@ -1311,4 +1196,90 @@ class _PantallaMapa extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SearchPage(usuario: usuario);
+}
+
+// ─── Modal perfil ──────────────────────────────────────────────────────────────
+
+class PerfilModal extends StatelessWidget {
+  final Map<String, dynamic>? usuario;
+  final VoidCallback? onLogout;
+  const PerfilModal({super.key, this.usuario, this.onLogout});
+
+  @override
+  Widget build(BuildContext context) {
+    final nombre  = usuario?['nombre'] as String? ?? 'Usuario';
+    final email   = usuario?['email']  as String? ?? '';
+    final rol     = usuario?['rol']    as String? ?? 'alumno';
+    final inicial = nombre.isNotEmpty ? nombre[0].toUpperCase() : 'U';
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(28),
+          topRight: Radius.circular(28),
+        ),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40, height: 4,
+            decoration: BoxDecoration(
+                color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+          ),
+          const SizedBox(height: 24),
+
+          CircleAvatar(
+            radius: 36,
+            backgroundColor: _kAzul,
+            child: Text(inicial,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w500)),
+          ),
+          const SizedBox(height: 16),
+
+          Text(nombre,
+              style: const TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.bold, color: _kAzul)),
+          const SizedBox(height: 4),
+          Text(email, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: _kAzul.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(rol,
+                style: const TextStyle(
+                    fontSize: 12, color: _kAzul, fontWeight: FontWeight.w500)),
+          ),
+          const SizedBox(height: 28),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onLogout,
+              icon: const Icon(Icons.logout, size: 18),
+              label: const Text('Cerrar sesión',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade50,
+                foregroundColor: Colors.red.shade700,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
 }

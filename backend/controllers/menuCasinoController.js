@@ -8,7 +8,7 @@ const listarMenuCasinoHoy = async (req, res) => {
        FROM menu_casino mc
        JOIN tiendas t ON t.id = mc.tienda_id
        WHERE mc.fecha = CURRENT_DATE AND t.activa = true
-       ORDER BY t.nombre`
+       ORDER BY t.nombre, mc.nombre`
     );
 
     const result = await Promise.all(menus.rows.map(async (menu) => {
@@ -48,7 +48,7 @@ const listarMenusCasino = async (req, res) => {
     }
 
     const menus = await pool.query(
-      `SELECT * FROM menu_casino WHERE tienda_id = $1 ORDER BY fecha DESC`,
+      `SELECT * FROM menu_casino WHERE tienda_id = $1 ORDER BY fecha DESC, nombre ASC`,
       [id]
     );
 
@@ -76,7 +76,7 @@ const listarMenusCasino = async (req, res) => {
 
 // POST /api/menu-casino
 const crearMenuCasino = async (req, res) => {
-  const { tienda_id, fecha, nombre, descripcion, platos } = req.body;
+  const { tienda_id, fecha, nombre, descripcion, precio, platos } = req.body;
 
   if (!tienda_id || !fecha || !nombre) {
     return res.status(400).json({ error: 'tienda_id, fecha y nombre son requeridos' });
@@ -98,9 +98,9 @@ const crearMenuCasino = async (req, res) => {
     }
 
     const menuResult = await client.query(
-      `INSERT INTO menu_casino (tienda_id, fecha, nombre, descripcion)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [tienda_id, fecha, nombre, descripcion || null]
+      `INSERT INTO menu_casino (tienda_id, fecha, nombre, descripcion, precio)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [tienda_id, fecha, nombre, descripcion || null, precio || null]
     );
     const menu = menuResult.rows[0];
 
@@ -124,9 +124,6 @@ const crearMenuCasino = async (req, res) => {
     res.status(201).json({ ...menu, platos: platosResult.rows });
   } catch (error) {
     await client.query('ROLLBACK');
-    if (error.code === '23505') {
-      return res.status(409).json({ error: 'Ya existe un menú para esa fecha' });
-    }
     console.error('Error creando menú casino:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   } finally {
@@ -137,7 +134,7 @@ const crearMenuCasino = async (req, res) => {
 // PUT /api/menu-casino/:id
 const editarMenuCasino = async (req, res) => {
   const { id } = req.params;
-  const { fecha, nombre, descripcion, platos } = req.body;
+  const { fecha, nombre, descripcion, precio, platos } = req.body;
 
   if (!fecha || !nombre) {
     return res.status(400).json({ error: 'fecha y nombre son requeridos' });
@@ -160,8 +157,8 @@ const editarMenuCasino = async (req, res) => {
     }
 
     await client.query(
-      `UPDATE menu_casino SET fecha = $1, nombre = $2, descripcion = $3 WHERE id = $4`,
-      [fecha, nombre, descripcion || null, id]
+      `UPDATE menu_casino SET fecha = $1, nombre = $2, descripcion = $3, precio = $4 WHERE id = $5`,
+      [fecha, nombre, descripcion || null, precio || null, id]
     );
 
     await client.query('DELETE FROM menu_casino_platos WHERE menu_id = $1', [id]);
@@ -186,9 +183,6 @@ const editarMenuCasino = async (req, res) => {
     res.json({ ...menuResult.rows[0], platos: platosResult.rows });
   } catch (error) {
     await client.query('ROLLBACK');
-    if (error.code === '23505') {
-      return res.status(409).json({ error: 'Ya existe un menú para esa fecha' });
-    }
     console.error('Error editando menú casino:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   } finally {
