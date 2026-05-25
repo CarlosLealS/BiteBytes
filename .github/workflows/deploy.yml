@@ -1,22 +1,52 @@
 name: Deploy BiteBytes
-
 on:
   push:
     branches:
       - main
-
 jobs:
   deploy:
     runs-on: self-hosted
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Deploy containers
+      - name: Teardown completo
+        run: |
+          # Bajar compose si existe
+          cd ~/BiteBytes
+          /usr/local/bin/podman-compose down --remove-orphans || true
+
+          # Eliminar contenedores por nombre (por si quedaron huérfanos)
+          podman rm -f bitebytes-backend bitebytes-frontend || true
+
+          # Eliminar el pod si existe
+          podman pod rm -f pod_bitebytes || true
+
+          # Matar cualquier proceso usando los puertos 3000 y 80
+          fuser -k 3000/tcp || true
+          fuser -k 80/tcp || true
+
+          # Esperar un momento para que libere los puertos
+          sleep 3
+
+      - name: Verificar limpieza
+        run: |
+          echo "=== Contenedores activos ==="
+          podman ps -a
+          echo "=== Pods activos ==="
+          podman pod ps
+          echo "=== Puertos en uso ==="
+          ss -tlnp | grep -E '3000|80' || echo "Puertos libres"
+
+      - name: Build y deploy
         run: |
           cd ~/BiteBytes
           git fetch origin
           git reset --hard origin/main
-          /usr/local/bin/podman-compose down
           /usr/local/bin/podman-compose up -d --build
+
+      - name: Verificar deploy
+        run: |
+          sleep 5
+          echo "=== Contenedores corriendo ==="
+          podman ps
