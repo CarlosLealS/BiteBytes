@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 import 'package:bitebytes_app/config/env.dart';
@@ -56,7 +55,7 @@ class _DuenioShellState extends State<DuenioShell> {
     final label = _navItems[_paginaActual].label;
     switch (label) {
       case 'Dashboard':     return DashboardPage(usuario: widget.usuario);
-      case 'Mi tienda':     return const TiendaPage();
+      case 'Mi tienda':     return TiendaPage(usuario: widget.usuario);
       case 'Productos':     return ProductosPage(usuario: widget.usuario);
       case 'Publicaciones': return PublicacionesPage(usuario: widget.usuario);
       case 'Trabajadores':  return const TrabajadoresPage();

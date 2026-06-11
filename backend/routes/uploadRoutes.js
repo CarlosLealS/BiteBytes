@@ -1,41 +1,49 @@
-const express = require('express');
-const router  = express.Router();
-const path    = require('path');
-const fs      = require('fs');
+const express    = require('express');
+const router     = express.Router();
+const multer     = require('multer');
+const cloudinary = require('../config/cloudinary');
 const { verificarToken } = require('../middleware/Authmiddleware');
-const upload  = require('../middleware/upload');
 
-// POST /api/upload
-// Sube una imagen y devuelve la URL pública
-router.post('/upload', verificarToken, upload.single('imagen'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No se recibió ninguna imagen' });
+// Guardar en memoria, no en disco
+const upload = multer({ storage: multer.memoryStorage() });
+
+router.delete('/upload', verificarToken, async (req, res) => {
+  try {
+    const { public_id } = req.body;
+    if (!public_id) return res.status(400).json({ error: 'public_id requerido' });
+
+    await cloudinary.uploader.destroy(public_id);
+    res.json({ mensaje: 'Imagen eliminada' });
+  } catch (e) {
+    console.error('Delete error:', e);
+    res.status(500).json({ error: 'Error al eliminar imagen' });
   }
-
-  const baseUrl  = process.env.BASE_URL || 'http://localhost:3000';
-  const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
-
-  res.json({ url: imageUrl, filename: req.file.filename });
 });
 
-// DELETE /api/upload/:filename
-// Elimina una imagen del servidor
-router.delete('/upload/:filename', verificarToken, (req, res) => {
-  const { filename } = req.params;
+router.post('/upload', verificarToken, upload.single('imagen'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No se recibió imagen' });
 
-  // Seguridad: evitar path traversal
-  if (filename.includes('..') || filename.includes('/')) {
-    return res.status(400).json({ error: 'Nombre de archivo inválido' });
+    // Subir buffer directo a Cloudinary
+    const resultado = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder:   'bitebytes',
+          transformation: [{ width: 800, quality: 'auto', fetch_format: 'auto' }],
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      stream.end(req.file.buffer);
+    });
+
+    res.json({ url: resultado.secure_url, public_id: resultado.public_id });
+  } catch (e) {
+    console.error('Upload error:', e);
+    res.status(500).json({ error: 'Error al subir imagen' });
   }
-
-  const filePath = path.join(__dirname, '..', 'uploads', filename);
-
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'Archivo no encontrado' });
-  }
-
-  fs.unlinkSync(filePath);
-  res.json({ mensaje: 'Imagen eliminada correctamente' });
 });
 
 module.exports = router;

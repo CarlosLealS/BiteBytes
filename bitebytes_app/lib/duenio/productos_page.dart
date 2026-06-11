@@ -21,8 +21,8 @@ class ProductosPage extends StatefulWidget {
 
 class _ProductosPageState extends State<ProductosPage> {
   bool _cargando = true;
-  List<Map<String, dynamic>> _productos   = [];
-  List<Map<String, dynamic>> _categorias  = [];
+  List<Map<String, dynamic>> _productos  = [];
+  List<Map<String, dynamic>> _categorias = [];
 
   @override
   void initState() {
@@ -48,7 +48,8 @@ class _ProductosPageState extends State<ProductosPage> {
         _categorias = List<Map<String, dynamic>>.from(jsonDecode(res[1].body) as List? ?? []);
         _cargando   = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error cargando productos: $e');
       if (!mounted) return;
       setState(() => _cargando = false);
     }
@@ -207,7 +208,6 @@ class _ProductoCard extends StatelessWidget {
     required this.onEditar,
   });
 
-  // ── Convierte cualquier valor numérico del backend a entero sin decimales ──
   String _formatPrecio(dynamic valor) {
     if (valor is double) return valor.toInt().toString();
     if (valor is int)    return valor.toString();
@@ -251,7 +251,6 @@ class _ProductoCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
                       maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
-                  // ── Precio sin decimales ──
                   Text(
                     precio != null ? '\$${_formatPrecio(precio)}' : '-',
                     style: const TextStyle(fontSize: 13, color: _kAzul, fontWeight: FontWeight.w500),
@@ -346,20 +345,20 @@ class _FormularioProducto extends StatefulWidget {
 }
 
 class _FormularioProductoState extends State<_FormularioProducto> {
-  final _formKey      = GlobalKey<FormState>();
-  final _nombreCtrl   = TextEditingController();
-  final _precioCtrl   = TextEditingController();
-  final _descCtrl     = TextEditingController();
+  final _formKey    = GlobalKey<FormState>();
+  final _nombreCtrl = TextEditingController();
+  final _precioCtrl = TextEditingController();
+  final _descCtrl   = TextEditingController();
 
-  int?          _categoriaId;
-  bool          _disponible  = true;
-  bool          _guardando   = false;
+  int?    _categoriaId;
+  bool    _disponible  = true;
+  bool    _guardando   = false;
 
-  // Imagen
-  String?       _imagenExistente;
-  Uint8List?    _imagenNuevaBytes;
-  String?       _imagenNuevaNombre;
-  String?       _imagenNuevaMime;
+  String?    _imagenExistente;
+  String?    _imagenExistentePublicId;
+  Uint8List? _imagenNuevaBytes;
+  String?    _imagenNuevaNombre;
+  String?    _imagenNuevaMime;
 
   bool get _esEdicion => widget.producto != null;
 
@@ -368,18 +367,18 @@ class _FormularioProductoState extends State<_FormularioProducto> {
     super.initState();
     if (_esEdicion) {
       final p = widget.producto!;
-      _nombreCtrl.text = p['nombre'] ?? '';
-      // Precio como entero (sin decimales)
-      final precioRaw = p['precio'];
+      _nombreCtrl.text        = p['nombre'] ?? '';
+      final precioRaw         = p['precio'];
       if (precioRaw != null) {
         _precioCtrl.text = precioRaw is double
             ? precioRaw.toInt().toString()
             : precioRaw.toString();
       }
-      _descCtrl.text   = p['descripcion'] ?? '';
-      _categoriaId     = p['categoria_id'] as int?;
-      _disponible      = p['disponible'] as bool? ?? true;
-      _imagenExistente = p['imagen_url'] as String?;
+      _descCtrl.text          = p['descripcion'] ?? '';
+      _categoriaId            = p['categoria_id'] as int?;
+      _disponible             = p['disponible'] as bool? ?? true;
+      _imagenExistente        = p['imagen_url'] as String?;
+      _imagenExistentePublicId = p['imagen_public_id'] as String?;
     }
   }
 
@@ -397,14 +396,15 @@ class _FormularioProductoState extends State<_FormularioProducto> {
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
     setState(() {
-      _imagenNuevaBytes  = bytes;
-      _imagenNuevaNombre = picked.name;
-      _imagenNuevaMime   = picked.mimeType ?? 'image/jpeg';
-      _imagenExistente   = null;
+      _imagenNuevaBytes        = bytes;
+      _imagenNuevaNombre       = picked.name;
+      _imagenNuevaMime         = picked.mimeType ?? 'image/jpeg';
+      _imagenExistente         = null;
+      _imagenExistentePublicId = null;
     });
   }
 
-  Future<String?> _subirImagen() async {
+  Future<Map<String, String>?> _subirImagen() async {
     if (_imagenNuevaBytes == null) return null;
     final token   = widget.usuario['token'] ?? '';
     final request = http.MultipartRequest('POST', Uri.parse('$_kBase/api/upload'));
@@ -417,7 +417,10 @@ class _FormularioProductoState extends State<_FormularioProducto> {
     final response = await request.send();
     final body     = await response.stream.bytesToString();
     final data     = jsonDecode(body);
-    return data['url'] as String?;
+    return {
+      'url':       data['url']       as String? ?? '',
+      'public_id': data['public_id'] as String? ?? '',
+    };
   }
 
   Future<void> _guardar() async {
@@ -428,19 +431,24 @@ class _FormularioProductoState extends State<_FormularioProducto> {
       final token    = widget.usuario['token'] ?? '';
       final tiendaId = widget.usuario['tienda_id'] ?? '';
 
-      String? imagenUrl = _imagenExistente;
+      String? imagenUrl      = _imagenExistente;
+      String? imagenPublicId = _imagenExistentePublicId;
+
       if (_imagenNuevaBytes != null) {
-        imagenUrl = await _subirImagen();
+        final resultado = await _subirImagen();
+        imagenUrl      = resultado?['url'];
+        imagenPublicId = resultado?['public_id'];
       }
 
       final body = jsonEncode({
-        'nombre':       _nombreCtrl.text.trim(),
-        'precio':       int.tryParse(_precioCtrl.text.trim()) ?? 0, // ← entero
-        'descripcion':  _descCtrl.text.trim(),
-        'imagen_url':   imagenUrl,
-        'categoria_id': _categoriaId,
-        'disponible':   _disponible,
-        'tienda_id':    tiendaId,
+        'nombre':           _nombreCtrl.text.trim(),
+        'precio':           int.tryParse(_precioCtrl.text.trim()) ?? 0,
+        'descripcion':      _descCtrl.text.trim(),
+        'imagen_url':       imagenUrl,
+        'imagen_public_id': imagenPublicId,
+        'categoria_id':     _categoriaId,
+        'disponible':       _disponible,
+        'tienda_id':        tiendaId,
       });
 
       final headers = {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'};
@@ -460,7 +468,8 @@ class _FormularioProductoState extends State<_FormularioProducto> {
       if (!mounted) return;
       Navigator.pop(context);
       widget.onGuardado();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error guardando producto: $e');
       setState(() => _guardando = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error al guardar'), backgroundColor: Colors.red),
@@ -489,7 +498,6 @@ class _FormularioProductoState extends State<_FormularioProducto> {
                 _campo('Nombre', _nombreCtrl, requerido: true),
                 const SizedBox(height: 12),
 
-                // ── Precio solo enteros (pesos chilenos) ──
                 _campoEntero('Precio (CLP)', _precioCtrl),
                 const SizedBox(height: 12),
 
@@ -517,8 +525,9 @@ class _FormularioProductoState extends State<_FormularioProducto> {
                         top: 6, right: 6,
                         child: GestureDetector(
                           onTap: () => setState(() {
-                            _imagenExistente  = null;
-                            _imagenNuevaBytes = null;
+                            _imagenExistente         = null;
+                            _imagenExistentePublicId = null;
+                            _imagenNuevaBytes        = null;
                           }),
                           child: Container(
                             width: 24, height: 24,
@@ -613,7 +622,6 @@ class _FormularioProductoState extends State<_FormularioProducto> {
     child: const Center(child: Icon(Icons.fastfood_outlined, size: 36, color: Color(0xFFD1D5DB))),
   );
 
-  // ── Campo genérico ──────────────────────────────────────────────────────────
   Widget _campo(String label, TextEditingController ctrl,
       {bool requerido = false, int maxLineas = 1, TextInputType? teclado}) {
     return TextFormField(
@@ -626,7 +634,6 @@ class _FormularioProductoState extends State<_FormularioProducto> {
     );
   }
 
-  // ── Campo precio: solo dígitos enteros (pesos chilenos, sin decimales) ──────
   Widget _campoEntero(String label, TextEditingController ctrl) {
     return TextFormField(
       controller: ctrl,

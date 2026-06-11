@@ -1,4 +1,5 @@
-const pool = require('../config/db');
+const pool       = require('../config/db');
+const cloudinary = require('../config/cloudinary');
 
 // GET /api/tienda/:id/publicaciones
 const listarPublicaciones = async (req, res) => {
@@ -7,7 +8,7 @@ const listarPublicaciones = async (req, res) => {
     const result = await pool.query(
       `SELECT p.*,
               JSON_AGG(
-                JSON_BUILD_OBJECT('id', pi.id, 'imagen_url', pi.imagen_url, 'orden', pi.orden)
+                JSON_BUILD_OBJECT('id', pi.id, 'imagen_url', pi.imagen_url, 'imagen_public_id', pi.imagen_public_id, 'orden', pi.orden)
                 ORDER BY pi.orden
               ) FILTER (WHERE pi.id IS NOT NULL) AS imagenes
        FROM publicaciones p
@@ -27,6 +28,7 @@ const listarPublicaciones = async (req, res) => {
 // POST /api/publicaciones
 const crearPublicacion = async (req, res) => {
   const { tienda_id, nombre, descripcion, precio_oferta, publicar_en, expira_en, activa, imagenes } = req.body;
+  // imagenes: [{ url, public_id }, ...]
 
   if (!nombre || !tienda_id) {
     return res.status(400).json({ error: 'Nombre y tienda_id son requeridos' });
@@ -49,24 +51,22 @@ const crearPublicacion = async (req, res) => {
       `INSERT INTO publicaciones (tienda_id, nombre, descripcion, precio_oferta, publicar_en, expira_en, activa)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [
-        tienda_id,
-        nombre,
-        descripcion || null,
-        precio_oferta || null,
-        publicar_en || new Date(),
-        expira_en || null,
-        activa ?? true,
-      ]
+      [tienda_id, nombre, descripcion || null, precio_oferta || null,
+       publicar_en || new Date(), expira_en || null, activa ?? true]
     );
 
     const publicacion = result.rows[0];
 
     if (imagenes && imagenes.length > 0) {
       for (let i = 0; i < imagenes.length; i++) {
+        const img = imagenes[i];
+        // Acepta tanto string (solo url) como objeto { url, public_id }
+        const url       = typeof img === 'string' ? img : img.url;
+        const public_id = typeof img === 'string' ? null : img.public_id;
         await client.query(
-          `INSERT INTO publicacion_imagenes (publicacion_id, imagen_url, orden) VALUES ($1, $2, $3)`,
-          [publicacion.id, imagenes[i], i]
+          `INSERT INTO publicacion_imagenes (publicacion_id, imagen_url, imagen_public_id, orden)
+           VALUES ($1, $2, $3, $4)`,
+          [publicacion.id, url, public_id || null, i]
         );
       }
     }
@@ -125,15 +125,32 @@ const editarPublicacion = async (req, res) => {
        SET nombre = $1, descripcion = $2, precio_oferta = $3,
            publicar_en = $4, expira_en = $5, activa = $6, actualizado_en = NOW()
        WHERE id = $7`,
-      [nombre, descripcion || null, precio_oferta || null, publicar_en, expira_en || null, activa ?? true, id]
+      [nombre, descripcion || null, precio_oferta || null,
+       publicar_en, expira_en || null, activa ?? true, id]
     );
 
+    // Eliminar imágenes anteriores de Cloudinary
+    const imagenesAnteriores = await client.query(
+      'SELECT imagen_public_id FROM publicacion_imagenes WHERE publicacion_id = $1',
+      [id]
+    );
+    for (const row of imagenesAnteriores.rows) {
+      if (row.imagen_public_id) {
+        await cloudinary.uploader.destroy(row.imagen_public_id).catch(console.error);
+      }
+    }
+
     await client.query('DELETE FROM publicacion_imagenes WHERE publicacion_id = $1', [id]);
+
     if (imagenes && imagenes.length > 0) {
       for (let i = 0; i < imagenes.length; i++) {
+        const img       = imagenes[i];
+        const url       = typeof img === 'string' ? img : img.url;
+        const public_id = typeof img === 'string' ? null : img.public_id;
         await client.query(
-          `INSERT INTO publicacion_imagenes (publicacion_id, imagen_url, orden) VALUES ($1, $2, $3)`,
-          [id, imagenes[i], i]
+          `INSERT INTO publicacion_imagenes (publicacion_id, imagen_url, imagen_public_id, orden)
+           VALUES ($1, $2, $3, $4)`,
+          [id, url, public_id || null, i]
         );
       }
     }
@@ -177,6 +194,17 @@ const eliminarPublicacion = async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para eliminar esta publicación' });
     }
 
+    // Eliminar imágenes de Cloudinary
+    const imagenes = await pool.query(
+      'SELECT imagen_public_id FROM publicacion_imagenes WHERE publicacion_id = $1',
+      [id]
+    );
+    for (const row of imagenes.rows) {
+      if (row.imagen_public_id) {
+        await cloudinary.uploader.destroy(row.imagen_public_id).catch(console.error);
+      }
+    }
+
     await pool.query('DELETE FROM publicaciones WHERE id = $1', [id]);
     res.json({ mensaje: 'Publicación eliminada correctamente' });
   } catch (error) {
@@ -185,19 +213,9 @@ const eliminarPublicacion = async (req, res) => {
   }
 };
 
-// GET /api/publicaciones/activas (para alumno - todas las publicaciones activas)
+// GET /api/publicaciones/activas
 const obtenerPublicacionesActivas = async (req, res) => {
   try {
-    // Debug: ver todas las publicaciones sin filtros
-    const debug = await pool.query(
-      `SELECT p.nombre, p.activa, p.publicar_en, p.expira_en,
-              t.nombre AS tienda, t.activa AS tienda_activa,
-              p.publicar_en <= NOW() AS ya_inicio,
-              (p.expira_en IS NULL OR p.expira_en > NOW()) AS no_expirada
-       FROM publicaciones p
-       JOIN tiendas t ON t.id = p.tienda_id`
-    );
-
     const result = await pool.query(
       `SELECT p.*,
               t.nombre AS tienda_nombre,
@@ -218,7 +236,6 @@ const obtenerPublicacionesActivas = async (req, res) => {
        GROUP BY p.id, t.id
        ORDER BY p.publicar_en DESC`
     );
-
     res.json(result.rows);
   } catch (error) {
     console.error('Error obteniendo publicaciones activas:', error.message);

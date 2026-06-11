@@ -205,6 +205,23 @@ const listarFavoritosIds = async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
+const listarTrabajadoresTienda = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await pool.query(
+      `SELECT u.id, u.nombre, u.email, t.desde
+       FROM trabajadores t
+       JOIN usuarios u ON u.id = t.usuario_id
+       WHERE t.tienda_id = $1
+       ORDER BY t.desde DESC`,
+      [id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener trabajadores' });
+  }
+};
 
 module.exports = {
   obtenerTienda,
@@ -217,4 +234,5 @@ module.exports = {
   agregarFavorito,
   quitarFavorito,
   listarFavoritosIds,
+  listarTrabajadoresTienda,
 };

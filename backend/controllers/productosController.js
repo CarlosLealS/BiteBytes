@@ -1,4 +1,5 @@
-const pool = require('../config/db');
+const pool       = require('../config/db');
+const cloudinary = require('../config/cloudinary');
 
 // GET /api/tienda/:id/productos
 const listarProductosTienda = async (req, res) => {
@@ -36,14 +37,13 @@ const listarCategorias = async (req, res) => {
 
 // POST /api/productos
 const crearProducto = async (req, res) => {
-  const { tienda_id, nombre, descripcion, precio, imagen_url, categoria_id, disponible } = req.body;
+  const { tienda_id, nombre, descripcion, precio, imagen_url, imagen_public_id, categoria_id, disponible } = req.body;
 
   if (!nombre || !precio || !tienda_id) {
     return res.status(400).json({ error: 'Nombre, precio y tienda_id son requeridos' });
   }
 
   try {
-    // Verificar que la tienda pertenece al dueño autenticado
     const tienda = await pool.query(
       'SELECT id FROM tiendas WHERE id = $1 AND duenio_id = $2',
       [tienda_id, req.usuario.id]
@@ -53,10 +53,10 @@ const crearProducto = async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO productos (tienda_id, nombre, descripcion, precio, imagen_url, categoria_id, disponible)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO productos (tienda_id, nombre, descripcion, precio, imagen_url, imagen_public_id, categoria_id, disponible)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [tienda_id, nombre, descripcion || null, precio, imagen_url || null, categoria_id || null, disponible ?? true]
+      [tienda_id, nombre, descripcion || null, precio, imagen_url || null, imagen_public_id || null, categoria_id || null, disponible ?? true]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -68,16 +68,15 @@ const crearProducto = async (req, res) => {
 // PUT /api/productos/:id
 const editarProducto = async (req, res) => {
   const { id } = req.params;
-  const { nombre, descripcion, precio, imagen_url, categoria_id, disponible } = req.body;
+  const { nombre, descripcion, precio, imagen_url, imagen_public_id, categoria_id, disponible } = req.body;
 
   if (!nombre || !precio) {
     return res.status(400).json({ error: 'Nombre y precio son requeridos' });
   }
 
   try {
-    // Verificar que el producto pertenece a una tienda del dueño
     const check = await pool.query(
-      `SELECT p.id FROM productos p
+      `SELECT p.id, p.imagen_public_id FROM productos p
        JOIN tiendas t ON t.id = p.tienda_id
        WHERE p.id = $1 AND t.duenio_id = $2`,
       [id, req.usuario.id]
@@ -86,13 +85,19 @@ const editarProducto = async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para editar este producto' });
     }
 
+    // Si cambia la imagen, eliminar la anterior de Cloudinary
+    const publicIdAnterior = check.rows[0].imagen_public_id;
+    if (publicIdAnterior && imagen_public_id && publicIdAnterior !== imagen_public_id) {
+      await cloudinary.uploader.destroy(publicIdAnterior).catch(console.error);
+    }
+
     const result = await pool.query(
       `UPDATE productos
-       SET nombre = $1, descripcion = $2, precio = $3, imagen_url = $4,
-           categoria_id = $5, disponible = $6, actualizado_en = NOW()
-       WHERE id = $7
+       SET nombre = $1, descripcion = $2, precio = $3, imagen_url = $4, imagen_public_id = $5,
+           categoria_id = $6, disponible = $7, actualizado_en = NOW()
+       WHERE id = $8
        RETURNING *`,
-      [nombre, descripcion || null, precio, imagen_url || null, categoria_id || null, disponible ?? true, id]
+      [nombre, descripcion || null, precio, imagen_url || null, imagen_public_id || null, categoria_id || null, disponible ?? true, id]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -101,7 +106,7 @@ const editarProducto = async (req, res) => {
   }
 };
 
-// PATCH /api/productos/:id  (toggle disponible)
+// PATCH /api/productos/:id
 const toggleDisponible = async (req, res) => {
   const { id } = req.params;
   const { disponible } = req.body;
@@ -138,13 +143,19 @@ const eliminarProducto = async (req, res) => {
   const { id } = req.params;
   try {
     const check = await pool.query(
-      `SELECT p.id FROM productos p
+      `SELECT p.id, p.imagen_public_id FROM productos p
        JOIN tiendas t ON t.id = p.tienda_id
        WHERE p.id = $1 AND t.duenio_id = $2`,
       [id, req.usuario.id]
     );
     if (check.rows.length === 0) {
       return res.status(403).json({ error: 'No tienes permiso para eliminar este producto' });
+    }
+
+    // Eliminar imagen de Cloudinary si existe
+    const publicId = check.rows[0].imagen_public_id;
+    if (publicId) {
+      await cloudinary.uploader.destroy(publicId).catch(console.error);
     }
 
     await pool.query('DELETE FROM productos WHERE id = $1', [id]);

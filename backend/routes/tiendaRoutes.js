@@ -12,6 +12,7 @@ const {
   agregarFavorito,
   quitarFavorito,
   listarFavoritosIds,
+  listarTrabajadoresTienda,
 } = require('../controllers/tiendaController');
 
 // Tienda — público
@@ -19,6 +20,7 @@ router.get('/tienda/:id',                        obtenerTienda);
 router.get('/tienda/:id/productos-disponibles',  listarProductosTienda);
 router.get('/tienda/:id/publicaciones-activas',  listarPublicacionesTienda);
 router.get('/tienda/:id/resenias',               listarReseniasTienda);
+router.get('/tienda/:id/trabajadores', verificarToken, listarTrabajadoresTienda);
 
 // Reseñas — requiere token
 router.get('/tienda/:id/mi-resenia',  verificarToken, miReseniaTienda);

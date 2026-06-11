@@ -43,7 +43,8 @@ class _PublicacionesPageState extends State<PublicacionesPage> {
         _publicaciones = List<Map<String, dynamic>>.from(jsonDecode(res.body) as List? ?? []);
         _cargando = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error cargando publicaciones: $e');
       if (!mounted) return;
       setState(() => _cargando = false);
     }
@@ -156,7 +157,7 @@ class _PublicacionesPageState extends State<PublicacionesPage> {
                   itemBuilder: (_, i) => _PublicacionCard(
                     pub: _publicaciones[i],
                     onEliminar: () => _eliminar(_publicaciones[i]['id']),
-                    onEditar: () => _abrirFormulario(pub: _publicaciones[i]),
+                    onEditar:   () => _abrirFormulario(pub: _publicaciones[i]),
                   ),
                 ),
               ),
@@ -176,7 +177,6 @@ class _PublicacionCard extends StatelessWidget {
 
   const _PublicacionCard({required this.pub, required this.onEliminar, required this.onEditar});
 
-  // ── Convierte cualquier valor numérico del backend a entero sin decimales ──
   String _formatPrecio(dynamic valor) {
     if (valor is double) return valor.toInt().toString();
     if (valor is int)    return valor.toString();
@@ -233,20 +233,19 @@ class _PublicacionCard extends StatelessWidget {
                         maxLines: 2, overflow: TextOverflow.ellipsis),
                   ],
                   const SizedBox(height: 6),
-                  // ── Precio sin decimales ──
                   if (precio != null)
                     Text('\$${_formatPrecio(precio)}',
                         style: const TextStyle(fontSize: 14, color: _kAzul, fontWeight: FontWeight.w600)),
                   const Spacer(),
-                  if (publicarEn != null) _fechaRow(Icons.play_circle_outline, 'Inicia', publicarEn),
-                  if (expiraEn   != null) _fechaRow(Icons.stop_circle_outlined, 'Expira', expiraEn),
+                  if (publicarEn != null) _fechaRow(Icons.play_circle_outline,  'Inicia', publicarEn),
+                  if (expiraEn   != null) _fechaRow(Icons.stop_circle_outlined,  'Expira', expiraEn),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      _iconBtn(Icons.edit_outlined, _kAzul.withOpacity(0.7), onEditar),
+                      _iconBtn(Icons.edit_outlined,   _kAzul.withOpacity(0.7), onEditar),
                       const SizedBox(width: 6),
-                      _iconBtn(Icons.delete_outline, Colors.red.shade300, onEliminar),
+                      _iconBtn(Icons.delete_outline, Colors.red.shade300,      onEliminar),
                     ],
                   ),
                 ],
@@ -275,9 +274,9 @@ class _PublicacionCard extends StatelessWidget {
   Widget _estadoBadge(String estado) {
     Color bg; Color fg; String label;
     switch (estado) {
-      case 'activa':     bg = const Color(0xFFDCFCE7); fg = const Color(0xFF166534); label = 'Activa'; break;
-      case 'programada': bg = const Color(0xFFEFF6FF); fg = const Color(0xFF1D4ED8); label = 'Programada'; break;
-      case 'expirada':   bg = const Color(0xFFFEF2F2); fg = const Color(0xFFB91C1C); label = 'Expirada'; break;
+      case 'activa':     bg = const Color(0xFFDCFCE7); fg = const Color(0xFF166534); label = 'Activa';      break;
+      case 'programada': bg = const Color(0xFFEFF6FF); fg = const Color(0xFF1D4ED8); label = 'Programada';  break;
+      case 'expirada':   bg = const Color(0xFFFEF2F2); fg = const Color(0xFFB91C1C); label = 'Expirada';    break;
       default:           bg = const Color(0xFFF3F4F6); fg = const Color(0xFF6B7280); label = 'Inactiva';
     }
     return Container(
@@ -346,8 +345,9 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
   final _descCtrl   = TextEditingController();
   final _precioCtrl = TextEditingController();
 
-  List<String>       _imagenesExistentes = [];
-  List<_ImagenNueva> _imagenesNuevas     = [];
+  // Cada imagen existente guarda url + public_id
+  List<Map<String, String>> _imagenesExistentes = [];
+  List<_ImagenNueva>        _imagenesNuevas     = [];
 
   DateTime? _publicarEn;
   DateTime? _expiraEn;
@@ -363,8 +363,7 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
       final p = widget.publicacion!;
       _nombreCtrl.text = p['nombre'] ?? '';
       _descCtrl.text   = p['descripcion'] ?? '';
-      // Precio como entero (sin decimales)
-      final precioRaw = p['precio_oferta'];
+      final precioRaw  = p['precio_oferta'];
       if (precioRaw != null) {
         _precioCtrl.text = precioRaw is double
             ? precioRaw.toInt().toString()
@@ -373,8 +372,12 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
       _activa     = p['activa'] as bool? ?? true;
       _publicarEn = p['publicar_en'] != null ? DateTime.tryParse(p['publicar_en']) : null;
       _expiraEn   = p['expira_en']   != null ? DateTime.tryParse(p['expira_en'])   : null;
+
       final imgs = p['imagenes'] as List? ?? [];
-      _imagenesExistentes = imgs.map((i) => i['imagen_url'].toString()).toList();
+      _imagenesExistentes = imgs.map((i) => {
+        'url':       i['imagen_url']?.toString()        ?? '',
+        'public_id': i['imagen_public_id']?.toString() ?? '',
+      }).toList();
     } else {
       _publicarEn = DateTime.now();
     }
@@ -402,7 +405,7 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
     });
   }
 
-  Future<String?> _subirImagen(_ImagenNueva img) async {
+  Future<Map<String, String>?> _subirImagen(_ImagenNueva img) async {
     final token   = widget.usuario['token'] ?? '';
     final request = http.MultipartRequest('POST', Uri.parse('$_kBase/api/upload'));
     request.headers['Authorization'] = 'Bearer $token';
@@ -414,7 +417,10 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
     final response = await request.send();
     final body     = await response.stream.bytesToString();
     final data     = jsonDecode(body);
-    return data['url'] as String?;
+    return {
+      'url':       data['url']       as String? ?? '',
+      'public_id': data['public_id'] as String? ?? '',
+    };
   }
 
   Future<void> _seleccionarFecha(bool esInicio) async {
@@ -455,40 +461,45 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
       final token    = widget.usuario['token'] ?? '';
       final tiendaId = widget.usuario['tienda_id'] ?? '';
 
-      final List<String> todasLasUrls = List.from(_imagenesExistentes);
+      // Subir imágenes nuevas y combinar con las existentes
+      final List<Map<String, String>> todasLasImagenes = List.from(_imagenesExistentes);
       for (final img in _imagenesNuevas) {
-        final url = await _subirImagen(img);
-        if (url != null) todasLasUrls.add(url);
+        final resultado = await _subirImagen(img);
+        if (resultado != null) todasLasImagenes.add(resultado);
       }
 
       final body = jsonEncode({
         'tienda_id':     tiendaId,
         'nombre':        _nombreCtrl.text.trim(),
         'descripcion':   _descCtrl.text.trim(),
-        // ← precio como entero, null si está vacío
         'precio_oferta': _precioCtrl.text.trim().isEmpty
             ? null
             : int.tryParse(_precioCtrl.text.trim()),
         'publicar_en':   _publicarEn?.toIso8601String(),
         'expira_en':     _expiraEn?.toIso8601String(),
         'activa':        _activa,
-        'imagenes':      todasLasUrls,
+        'imagenes':      todasLasImagenes, // [{url, public_id}, ...]
       });
 
       final headers = {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'};
 
       if (_esEdicion) {
-        await http.put(Uri.parse('$_kBase/api/publicaciones/${widget.publicacion!['id']}'),
-            headers: headers, body: body);
+        await http.put(
+          Uri.parse('$_kBase/api/publicaciones/${widget.publicacion!['id']}'),
+          headers: headers, body: body,
+        );
       } else {
-        await http.post(Uri.parse('$_kBase/api/publicaciones'),
-            headers: headers, body: body);
+        await http.post(
+          Uri.parse('$_kBase/api/publicaciones'),
+          headers: headers, body: body,
+        );
       }
 
       if (!mounted) return;
       Navigator.pop(context);
       widget.onGuardado();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error guardando publicación: $e');
       setState(() => _guardando = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error al guardar'), backgroundColor: Colors.red),
@@ -513,12 +524,11 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
                 Text(_esEdicion ? 'Editar publicación' : 'Nueva publicación',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 20),
+
                 _campo('Nombre', _nombreCtrl, requerido: true),
                 const SizedBox(height: 12),
                 _campo('Descripción', _descCtrl, maxLineas: 3),
                 const SizedBox(height: 12),
-
-                // ── Precio solo enteros (pesos chilenos) ──
                 _campoEntero('Precio oferta CLP (opcional)', _precioCtrl),
                 const SizedBox(height: 16),
 
@@ -540,7 +550,7 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
                     spacing: 8, runSpacing: 8,
                     children: [
                       ..._imagenesExistentes.asMap().entries.map((e) => _miniatura(
-                        child: Image.network(e.value, fit: BoxFit.cover,
+                        child: Image.network(e.value['url']!, fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 24)),
                         onEliminar: () => setState(() => _imagenesExistentes.removeAt(e.key)),
                       )),
@@ -673,20 +683,18 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
   String _formatFecha(DateTime dt) =>
       '${dt.day}/${dt.month}/${dt.year}  ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 
-  // ── Campo genérico ──────────────────────────────────────────────────────────
   Widget _campo(String label, TextEditingController ctrl,
-      {bool requerido = false, int maxLineas = 1, TextInputType? teclado, String? hint}) {
+      {bool requerido = false, int maxLineas = 1, TextInputType? teclado}) {
     return TextFormField(
       controller: ctrl,
       maxLines: maxLineas,
       keyboardType: teclado,
       style: const TextStyle(fontSize: 13),
-      decoration: _inputDec(label, hint: hint),
+      decoration: _inputDec(label),
       validator: requerido ? (v) => (v == null || v.trim().isEmpty) ? 'Campo requerido' : null : null,
     );
   }
 
-  // ── Campo precio: solo dígitos enteros (pesos chilenos, sin decimales) ──────
   Widget _campoEntero(String label, TextEditingController ctrl) {
     return TextFormField(
       controller: ctrl,
@@ -695,17 +703,16 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
       style: const TextStyle(fontSize: 13),
       decoration: _inputDec(label),
       validator: (v) {
-        if (v == null || v.trim().isEmpty) return null; // opcional
+        if (v == null || v.trim().isEmpty) return null;
         if (int.tryParse(v.trim()) == null) return 'Ingresa un número válido';
         return null;
       },
     );
   }
 
-  InputDecoration _inputDec(String label, {String? hint}) => InputDecoration(
-    labelText: label, hintText: hint,
+  InputDecoration _inputDec(String label) => InputDecoration(
+    labelText: label,
     labelStyle: const TextStyle(fontSize: 13),
-    hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
