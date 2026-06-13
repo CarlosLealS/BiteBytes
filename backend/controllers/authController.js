@@ -2,7 +2,6 @@ const bcrypt = require('bcrypt');
 const jwt    = require('jsonwebtoken');
 const pool   = require('../config/db');
 
-// Registro de usuario
 const registrar = async (req, res) => {
   const { nombre, email, password, rol_id } = req.body;
 
@@ -32,7 +31,6 @@ const registrar = async (req, res) => {
   }
 };
 
-// Inicio de sesión
 const login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -64,7 +62,6 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
-    // Si es dueño de tienda, buscar su tienda y si es casino
     let tiendaId     = null;
     let nombreTienda = null;
     let esCasino     = false;
@@ -84,13 +81,30 @@ const login = async (req, res) => {
       }
     }
 
-    // Generar token JWT con es_casino incluido
+    if (usuario.rol === 'trabajador_tienda') {
+      const tienda = await pool.query(
+        `SELECT t.id, t.nombre, tip.es_casino
+         FROM trabajadores_tienda tt
+         JOIN tiendas t   ON t.id  = tt.tienda_id
+         JOIN tipo_tienda tip ON tip.id = t.tipo_tienda_id
+         WHERE tt.usuario_id = $1 AND t.activa = true LIMIT 1`,
+        [usuario.id]
+      );
+      if (tienda.rows.length > 0) {
+        tiendaId     = tienda.rows[0].id;
+        nombreTienda = tienda.rows[0].nombre;
+        esCasino     = tienda.rows[0].es_casino;
+      }
+    }
+
     const token = jwt.sign(
       {
         id:        usuario.id,
         email:     usuario.email,
+        nombre:    usuario.nombre,
         rol:       usuario.rol,
         tienda_id: tiendaId,
+        tienda:    nombreTienda,
         es_casino: esCasino,
       },
       process.env.JWT_SECRET,
@@ -116,18 +130,10 @@ const login = async (req, res) => {
   }
 };
 
-// Cierre de sesión
 const logout = async (req, res) => {
   try {
-    // Con JWT, el logout es principalmente del lado del cliente
-    // El servidor valida que el token sea válido (lo hace el middleware)
-    // y confirma el logout exitoso
     const usuarioId = req.usuario.id;
-
-    res.json({
-      mensaje: 'Sesión cerrada correctamente',
-      usuarioId
-    });
+    res.json({ mensaje: 'Sesión cerrada correctamente', usuarioId });
   } catch (error) {
     console.error('Error en logout:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });

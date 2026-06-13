@@ -1,8 +1,9 @@
-const passport = require('passport');
+const passport    = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const jwt  = require('jsonwebtoken');
 const pool = require('./db');
 
-const DOMINIOS_PERMITIDOS = ['ucn.cl', 'alumnos.ucn.cl', 'soyucn.edu.co'];
+const DOMINIOS_PERMITIDOS = ['ucn.cl', 'alumnos.ucn.cl', 'ce.ucn.cl'];
 
 passport.use(new GoogleStrategy({
   clientID:     process.env.GOOGLE_CLIENT_ID,
@@ -10,13 +11,8 @@ passport.use(new GoogleStrategy({
   callbackURL:  process.env.GOOGLE_CALLBACK_URL,
 }, async (accessToken, refreshToken, profile, done) => {
   try {
-    const email = profile.emails[0].value.toLowerCase();
+    const email   = profile.emails[0].value.toLowerCase();
     const dominio = email.split('@')[1];
-
-    // Verificar dominio permitido
-    if (!DOMINIOS_PERMITIDOS.includes(dominio)) {
-      return done(null, false, { mensaje: 'Correo no permitido. Debes usar tu correo institucional UCN.' });
-    }
 
     // Buscar si el usuario ya existe
     const resultado = await pool.query(
@@ -27,12 +23,18 @@ passport.use(new GoogleStrategy({
       [email]
     );
 
+    // Si existe, verificar que esté activo y dejarlo pasar sin importar dominio
     if (resultado.rows.length > 0) {
       const usuario = resultado.rows[0];
       if (!usuario.activo) {
         return done(null, false, { mensaje: 'Tu cuenta está desactivada.' });
       }
       return done(null, usuario);
+    }
+
+    // Si no existe, verificar dominio permitido para crear cuenta nueva
+    if (!DOMINIOS_PERMITIDOS.includes(dominio)) {
+      return done(null, false, { mensaje: 'Correo no permitido. Debes usar tu correo institucional UCN.' });
     }
 
     // Crear usuario nuevo como alumno (rol_id = 5)

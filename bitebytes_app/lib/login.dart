@@ -20,7 +20,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _verPassword   = false;
   String? _error;
 
-  static String get _apiBaseUrl    => Env.apiUrl;
+  static String get _apiBaseUrl     => Env.apiUrl;
   static String get _googleLoginUrl => '${Env.apiUrl}/api/auth/google';
 
   @override
@@ -29,7 +29,6 @@ class _LoginPageState extends State<LoginPage> {
     _verificarTokenGoogle();
   }
 
-  // Detecta si Google redirigió con ?token=... en la URL
   void _verificarTokenGoogle() {
     final t = Uri.base.queryParameters['token'];
     if (t != null && t.isNotEmpty) {
@@ -50,9 +49,10 @@ class _LoginPageState extends State<LoginPage> {
       final usuario = {
         'id':        decoded['id'],
         'email':     decoded['email'],
-        'nombre':    decoded['email']?.toString().split('@').first ?? 'Usuario',
+        'nombre':    decoded['nombre'] ?? decoded['email']?.toString().split('@').first ?? 'Usuario',
         'rol':       decoded['rol'],
         'tienda_id': decoded['tienda_id'],
+        'tienda':    decoded['tienda'] ?? decoded['nombre_tienda'] ?? '',
         'es_casino': decoded['es_casino'],
         'token':     token,
       };
@@ -64,9 +64,11 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _navegarSegunRol(Map<String, dynamic> usuario) {
-    if (usuario['rol'] == 'duenio_tienda' ||
-        usuario['rol'] == 'admin' ||
-        usuario['rol'] == 'super_admin') {
+    final rol = usuario['rol'];
+    if (rol == 'duenio_tienda'    ||
+        rol == 'admin'            ||
+        rol == 'super_admin'      ||
+        rol == 'trabajador_tienda') {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => DuenioShell(usuario: usuario)),
@@ -106,8 +108,17 @@ class _LoginPageState extends State<LoginPage> {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        final usuario = data['usuario'] as Map<String, dynamic>;
-        usuario['token'] = data['token'];
+        final raw = data['usuario'] as Map<String, dynamic>;
+        final usuario = {
+          'id':        raw['id'],
+          'email':     raw['email'],
+          'nombre':    raw['nombre'] ?? raw['email']?.toString().split('@').first ?? 'Usuario',
+          'rol':       raw['rol'],
+          'tienda_id': raw['tienda_id'],
+          'tienda':    raw['tienda'] ?? raw['nombre_tienda'] ?? '',
+          'es_casino': raw['es_casino'],
+          'token':     data['token'],
+        };
         _navegarSegunRol(usuario);
       } else {
         setState(() => _error = data['error'] ?? 'Error al iniciar sesión');

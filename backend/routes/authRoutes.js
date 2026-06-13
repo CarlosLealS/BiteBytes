@@ -9,34 +9,54 @@ const { verificarToken } = require('../middleware/Authmiddleware');
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 
 router.post('/registro', registrar);
-router.post('/login', login);
-router.post('/logout', verificarToken, logout);
+router.post('/login',    login);
+router.post('/logout',   verificarToken, logout);
 
 router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email'],
+  scope:   ['profile', 'email'],
   session: false,
-  prompt: 'select_account',
+  prompt:  'select_account',
 }));
 
 router.get('/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/api/auth/google/fallo' }),
+  passport.authenticate('google', {
+    session: false,
+    failureRedirect: '/api/auth/google/fallo',
+  }),
   async (req, res) => {
     try {
-      // Buscar tienda del usuario si es dueño
       let tiendaId     = null;
+      let nombreTienda = null;
       let esCasino     = false;
 
       if (req.user.rol === 'duenio_tienda') {
         const tienda = await pool.query(
-          `SELECT t.id, tt.es_casino
+          `SELECT t.id, t.nombre, tt.es_casino
            FROM tiendas t
            JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
            WHERE t.duenio_id = $1 AND t.activa = true LIMIT 1`,
           [req.user.id]
         );
         if (tienda.rows.length > 0) {
-          tiendaId = tienda.rows[0].id;
-          esCasino = tienda.rows[0].es_casino;
+          tiendaId     = tienda.rows[0].id;
+          nombreTienda = tienda.rows[0].nombre;
+          esCasino     = tienda.rows[0].es_casino;
+        }
+      }
+
+      if (req.user.rol === 'trabajador_tienda') {
+        const tienda = await pool.query(
+          `SELECT t.id, t.nombre, tip.es_casino
+           FROM trabajadores_tienda tt
+           JOIN tiendas t       ON t.id   = tt.tienda_id
+           JOIN tipo_tienda tip ON tip.id = t.tipo_tienda_id
+           WHERE tt.usuario_id = $1 AND t.activa = true LIMIT 1`,
+          [req.user.id]
+        );
+        if (tienda.rows.length > 0) {
+          tiendaId     = tienda.rows[0].id;
+          nombreTienda = tienda.rows[0].nombre;
+          esCasino     = tienda.rows[0].es_casino;
         }
       }
 
@@ -44,8 +64,10 @@ router.get('/google/callback',
         {
           id:        req.user.id,
           email:     req.user.email,
+          nombre:    req.user.nombre,
           rol:       req.user.rol,
           tienda_id: tiendaId,
+          tienda:    nombreTienda,
           es_casino: esCasino,
         },
         process.env.JWT_SECRET,
