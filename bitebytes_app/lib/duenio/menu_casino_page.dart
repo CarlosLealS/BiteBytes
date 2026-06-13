@@ -125,6 +125,7 @@ class _MenuCasinoPageState extends State<MenuCasinoPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header sin botón "Nuevo menú"
           Row(
             children: [
               const Text('Menú Casino',
@@ -142,28 +143,13 @@ class _MenuCasinoPageState extends State<MenuCasinoPage> {
                 child: const Text('Calendario',
                     style: TextStyle(fontSize: 11, color: _kAzul)),
               ),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed: () => _abrirFormulario(),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Nuevo menú'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _kDorado,
-                  foregroundColor: _kAzul,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                  textStyle: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 13),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 20),
           if (_cargando)
             const Expanded(
-                child:
-                    Center(child: CircularProgressIndicator(color: _kDorado)))
+                child: Center(
+                    child: CircularProgressIndicator(color: _kDorado)))
           else
             Expanded(
               child: Row(
@@ -252,7 +238,8 @@ class _PanelDia extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.calendar_today_outlined, size: 15, color: _kAzul),
+              const Icon(Icons.calendar_today_outlined,
+                  size: 15, color: _kAzul),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -315,9 +302,11 @@ class _PanelDia extends StatelessWidget {
                       const SizedBox(height: 8),
                       TextButton.icon(
                         onPressed: onAgregarMenu,
-                        icon: const Icon(Icons.add, size: 16, color: _kAzul),
+                        icon: const Icon(Icons.add,
+                            size: 16, color: _kAzul),
                         label: const Text('Crear el primer menú',
-                            style: TextStyle(color: _kAzul, fontSize: 13)),
+                            style:
+                                TextStyle(color: _kAzul, fontSize: 13)),
                       ),
                     ],
                   ),
@@ -383,10 +372,12 @@ class _Calendario extends StatelessWidget {
                 onPressed: onAnterior,
                 icon: const Icon(Icons.chevron_left, color: _kAzul),
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
               ),
               Expanded(
-                child: Text('${meses[mesActual.month - 1]} ${mesActual.year}',
+                child: Text(
+                    '${meses[mesActual.month - 1]} ${mesActual.year}',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                         fontSize: 14,
@@ -397,7 +388,8 @@ class _Calendario extends StatelessWidget {
                 onPressed: onSiguiente,
                 icon: const Icon(Icons.chevron_right, color: _kAzul),
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
               ),
             ],
           ),
@@ -418,7 +410,8 @@ class _Calendario extends StatelessWidget {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
               mainAxisSpacing: 4,
               crossAxisSpacing: 4,
@@ -429,11 +422,14 @@ class _Calendario extends StatelessWidget {
               if (index < offset) return const SizedBox();
               final dia      = index - offset + 1;
               final fecha    = DateTime(mesActual.year, mesActual.month, dia);
-              final fechaStr = '${mesActual.year}-${mesActual.month.toString().padLeft(2, '0')}-${dia.toString().padLeft(2, '0')}';
+              final fechaStr =
+                  '${mesActual.year}-${mesActual.month.toString().padLeft(2, '0')}-${dia.toString().padLeft(2, '0')}';
               final menusDelDia   = menusPorFecha[fechaStr] ?? [];
               final cantidadMenus = menusDelDia.length;
               final tieneMenu     = cantidadMenus > 0;
-              final esHoy         = fecha.year == hoy.year && fecha.month == hoy.month && fecha.day == hoy.day;
+              final esHoy         = fecha.year == hoy.year &&
+                  fecha.month == hoy.month &&
+                  fecha.day == hoy.day;
               final esSeleccionado = fechaSeleccionada != null &&
                   fecha.year == fechaSeleccionada!.year &&
                   fecha.month == fechaSeleccionada!.month &&
@@ -462,9 +458,10 @@ class _Calendario extends StatelessWidget {
                       Text('$dia',
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: tieneMenu || esHoy || esSeleccionado
-                                ? FontWeight.w600
-                                : FontWeight.w400,
+                            fontWeight:
+                                tieneMenu || esHoy || esSeleccionado
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
                             color: esSeleccionado
                                 ? _kAzul
                                 : tieneMenu
@@ -492,10 +489,12 @@ class _Calendario extends StatelessWidget {
                         )
                       else if (tieneMenu)
                         Container(
-                          width: 4, height: 4,
+                          width: 4,
+                          height: 4,
                           margin: const EdgeInsets.only(top: 2),
                           decoration: BoxDecoration(
-                            color: esSeleccionado ? _kAzul : _kDorado,
+                            color:
+                                esSeleccionado ? _kAzul : _kDorado,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -509,23 +508,40 @@ class _Calendario extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(width: 10, height: 10,
-                  decoration: BoxDecoration(color: _kAzul, borderRadius: BorderRadius.circular(2))),
-              const SizedBox(width: 4),
-              const Text('Con menú', style: TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
-              const SizedBox(width: 10),
-              Container(width: 10, height: 10,
-                  decoration: BoxDecoration(color: _kDorado, borderRadius: BorderRadius.circular(2))),
-              const SizedBox(width: 4),
-              const Text('Seleccionado', style: TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
-              const SizedBox(width: 10),
-              Container(width: 10, height: 10,
+              Container(
+                  width: 10,
+                  height: 10,
                   decoration: BoxDecoration(
-                    border: Border.all(color: _kDorado, width: 1.5),
+                      color: _kAzul,
+                      borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 4),
+              const Text('Con menú',
+                  style: TextStyle(
+                      fontSize: 10, color: Color(0xFF6B7280))),
+              const SizedBox(width: 10),
+              Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                      color: _kDorado,
+                      borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 4),
+              const Text('Seleccionado',
+                  style: TextStyle(
+                      fontSize: 10, color: Color(0xFF6B7280))),
+              const SizedBox(width: 10),
+              Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    border:
+                        Border.all(color: _kDorado, width: 1.5),
                     borderRadius: BorderRadius.circular(2),
                   )),
               const SizedBox(width: 4),
-              const Text('Hoy', style: TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+              const Text('Hoy',
+                  style: TextStyle(
+                      fontSize: 10, color: Color(0xFF6B7280))),
             ],
           ),
         ],
@@ -553,9 +569,9 @@ class _MenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fecha  = _formatFecha(menu['fecha']?.toString() ?? '');
-    final esHoy  = _esHoy(menu['fecha']?.toString() ?? '');
-    final platos = menu['platos'] as List? ?? [];
+    final fecha      = _formatFecha(menu['fecha']?.toString() ?? '');
+    final esHoy      = _esHoy(menu['fecha']?.toString() ?? '');
+    final platos     = menu['platos'] as List? ?? [];
     final precioMenu = menu['precio'];
 
     return Container(
@@ -563,7 +579,9 @@ class _MenuCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: esHoy ? _kDorado.withOpacity(0.5) : const Color(0xFFE5E7EB),
+          color: esHoy
+              ? _kDorado.withOpacity(0.5)
+              : const Color(0xFFE5E7EB),
           width: esHoy ? 1.5 : 0.5,
         ),
         boxShadow: [
@@ -578,18 +596,23 @@ class _MenuCard extends StatelessWidget {
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: esHoy ? _kAzul : const Color(0xFFF9FAFB),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(14)),
             ),
             child: Row(
               children: [
                 if (totalMenus > 1) ...[
                   Container(
-                    width: 22, height: 22,
+                    width: 22,
+                    height: 22,
                     decoration: BoxDecoration(
-                      color: esHoy ? _kDorado.withOpacity(0.3) : _kAzul.withOpacity(0.15),
+                      color: esHoy
+                          ? _kDorado.withOpacity(0.3)
+                          : _kAzul.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Center(
@@ -604,17 +627,22 @@ class _MenuCard extends StatelessWidget {
                 ],
                 Icon(Icons.calendar_today_outlined,
                     size: 14,
-                    color: esHoy ? _kDorado : const Color(0xFF6B7280)),
+                    color: esHoy
+                        ? _kDorado
+                        : const Color(0xFF6B7280)),
                 const SizedBox(width: 6),
                 Text(fecha,
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: esHoy ? Colors.white : const Color(0xFF374151))),
+                        color: esHoy
+                            ? Colors.white
+                            : const Color(0xFF374151))),
                 if (esHoy) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                         color: _kDorado,
                         borderRadius: BorderRadius.circular(10)),
@@ -626,15 +654,20 @@ class _MenuCard extends StatelessWidget {
                   ),
                 ],
                 const Spacer(),
-                _iconBtn(Icons.edit_outlined,
-                    esHoy ? Colors.white60 : _kAzul.withOpacity(0.6), onEditar),
+                _iconBtn(
+                    Icons.edit_outlined,
+                    esHoy
+                        ? Colors.white60
+                        : _kAzul.withOpacity(0.6),
+                    onEditar),
                 const SizedBox(width: 6),
-                _iconBtn(Icons.delete_outline, Colors.red.shade300, onEliminar),
+                _iconBtn(Icons.delete_outline,
+                    Colors.red.shade300, onEliminar),
               ],
             ),
           ),
 
-          // Nombre, descripción y precio del menú
+          // Nombre, descripción y precio
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Row(
@@ -650,16 +683,18 @@ class _MenuCard extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               color: Color(0xFF111827))),
                       if (menu['descripcion'] != null &&
-                          menu['descripcion'].toString().isNotEmpty) ...[
+                          menu['descripcion']
+                              .toString()
+                              .isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(menu['descripcion'],
                             style: const TextStyle(
-                                fontSize: 12, color: Color(0xFF6B7280))),
+                                fontSize: 12,
+                                color: Color(0xFF6B7280))),
                       ],
                     ],
                   ),
                 ),
-                // Precio del menú completo
                 if (precioMenu != null) ...[
                   const SizedBox(width: 12),
                   Container(
@@ -669,7 +704,8 @@ class _MenuCard extends StatelessWidget {
                       color: _kDorado.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                          color: _kDorado.withOpacity(0.4), width: 1),
+                          color: _kDorado.withOpacity(0.4),
+                          width: 1),
                     ),
                     child: Column(
                       children: [
@@ -702,7 +738,8 @@ class _MenuCard extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: platos
-                    .map((p) => _PlatoChip(plato: p as Map<String, dynamic>))
+                    .map((p) =>
+                        _PlatoChip(plato: p as Map<String, dynamic>))
                     .toList(),
               ),
             ),
@@ -713,14 +750,17 @@ class _MenuCard extends StatelessWidget {
     );
   }
 
-  Widget _iconBtn(IconData icon, Color color, VoidCallback onTap) =>
+  Widget _iconBtn(
+          IconData icon, Color color, VoidCallback onTap) =>
       InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(6),
         child: Container(
-          width: 28, height: 28,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+            border: Border.all(
+                color: const Color(0xFFE5E7EB), width: 0.5),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Icon(icon, size: 14, color: color),
@@ -729,19 +769,27 @@ class _MenuCard extends StatelessWidget {
 
   bool _esHoy(String fecha) {
     try {
-      final dt = DateTime.parse(fecha);
+      final dt  = DateTime.parse(fecha);
       final hoy = DateTime.now();
-      return dt.year == hoy.year && dt.month == hoy.month && dt.day == hoy.day;
-    } catch (_) { return false; }
+      return dt.year == hoy.year &&
+          dt.month == hoy.month &&
+          dt.day == hoy.day;
+    } catch (_) {
+      return false;
+    }
   }
 
   String _formatFecha(String fecha) {
     try {
       final dt = DateTime.parse(fecha);
-      const meses = ['enero','febrero','marzo','abril','mayo','junio',
-                     'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+      const meses = [
+        'enero','febrero','marzo','abril','mayo','junio',
+        'julio','agosto','septiembre','octubre','noviembre','diciembre'
+      ];
       return '${dt.day} de ${meses[dt.month - 1]} ${dt.year}';
-    } catch (_) { return fecha; }
+    } catch (_) {
+      return fecha;
+    }
   }
 }
 
@@ -758,14 +806,16 @@ class _PlatoChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFF4F6FB),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+        border:
+            Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (plato['etiqueta'] != null) ...[
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: _kAzul.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(4),
@@ -779,8 +829,8 @@ class _PlatoChip extends StatelessWidget {
             const SizedBox(width: 6),
           ],
           Text(plato['nombre'] ?? '',
-              style: const TextStyle(fontSize: 12, color: Color(0xFF374151))),
-          // Precio del plato es opcional
+              style: const TextStyle(
+                  fontSize: 12, color: Color(0xFF374151))),
           if (plato['precio'] != null) ...[
             const SizedBox(width: 6),
             Text('\$${plato['precio']}',
@@ -818,7 +868,7 @@ class _FormularioMenuState extends State<_FormularioMenu> {
   final _formKey    = GlobalKey<FormState>();
   final _nombreCtrl = TextEditingController();
   final _descCtrl   = TextEditingController();
-  final _precioCtrl = TextEditingController(); // precio del menú completo
+  final _precioCtrl = TextEditingController();
   DateTime? _fecha;
   List<_PlatoEditable> _platos = [];
   bool _guardando = false;
@@ -836,7 +886,8 @@ class _FormularioMenuState extends State<_FormularioMenu> {
       _fecha = m['fecha'] != null ? DateTime.tryParse(m['fecha']) : null;
       final platos = m['platos'] as List? ?? [];
       _platos = platos
-          .map((p) => _PlatoEditable.desdeJson(p as Map<String, dynamic>))
+          .map((p) =>
+              _PlatoEditable.desdeJson(p as Map<String, dynamic>))
           .toList();
     } else {
       _fecha = widget.fechaInicial ?? DateTime.now();
@@ -852,7 +903,8 @@ class _FormularioMenuState extends State<_FormularioMenu> {
     super.dispose();
   }
 
-  void _agregarPlato() => setState(() => _platos.add(_PlatoEditable()));
+  void _agregarPlato() =>
+      setState(() => _platos.add(_PlatoEditable()));
 
   void _eliminarPlato(int i) => setState(() {
         _platos[i].dispose();
@@ -863,7 +915,8 @@ class _FormularioMenuState extends State<_FormularioMenu> {
     final fecha = await showDatePicker(
       context: context,
       initialDate: _fecha ?? DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      firstDate:
+          DateTime.now().subtract(const Duration(days: 30)),
       lastDate: DateTime.now().add(const Duration(days: 90)),
       locale: const Locale('es', 'CL'),
       builder: (ctx, child) => Theme(
@@ -886,7 +939,8 @@ class _FormularioMenuState extends State<_FormularioMenu> {
     request.files.add(http.MultipartFile.fromBytes(
       'imagen', plato.imagenBytes!,
       filename: plato.imagenNombre ?? 'imagen.jpg',
-      contentType: MediaType.parse(plato.imagenMime ?? 'image/jpeg'),
+      contentType:
+          MediaType.parse(plato.imagenMime ?? 'image/jpeg'),
     ));
     final response = await request.send();
     final body     = await response.stream.bytesToString();
@@ -914,21 +968,30 @@ class _FormularioMenuState extends State<_FormularioMenu> {
         final url = await _subirImagen(p);
         platosJson.add({
           'nombre':      p.nombreCtrl.text.trim(),
-          'descripcion': p.descCtrl.text.trim().isEmpty ? null : p.descCtrl.text.trim(),
+          'descripcion': p.descCtrl.text.trim().isEmpty
+              ? null
+              : p.descCtrl.text.trim(),
           'imagen_url':  url,
-          // precio del plato es opcional
-          'precio':      p.precioCtrl.text.trim().isEmpty ? null : int.tryParse(p.precioCtrl.text.trim()),
-          'etiqueta':    p.etiquetaCtrl.text.trim().isEmpty ? null : p.etiquetaCtrl.text.trim(),
+          'precio':      p.precioCtrl.text.trim().isEmpty
+              ? null
+              : int.tryParse(p.precioCtrl.text.trim()),
+          'etiqueta':    p.etiquetaCtrl.text.trim().isEmpty
+              ? null
+              : p.etiquetaCtrl.text.trim(),
         });
       }
 
       final body = jsonEncode({
         'tienda_id':   tiendaId,
-        'fecha':       '${_fecha!.year}-${_fecha!.month.toString().padLeft(2, '0')}-${_fecha!.day.toString().padLeft(2, '0')}',
+        'fecha':
+            '${_fecha!.year}-${_fecha!.month.toString().padLeft(2, '0')}-${_fecha!.day.toString().padLeft(2, '0')}',
         'nombre':      _nombreCtrl.text.trim(),
-        'descripcion': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
-        // precio del menú completo es opcional
-        'precio':      _precioCtrl.text.trim().isEmpty ? null : int.tryParse(_precioCtrl.text.trim()),
+        'descripcion': _descCtrl.text.trim().isEmpty
+            ? null
+            : _descCtrl.text.trim(),
+        'precio':      _precioCtrl.text.trim().isEmpty
+            ? null
+            : int.tryParse(_precioCtrl.text.trim()),
         'platos':      platosJson,
       });
 
@@ -939,8 +1002,10 @@ class _FormularioMenuState extends State<_FormularioMenu> {
 
       if (_esEdicion) {
         await http.put(
-            Uri.parse('$_kBase/api/menu-casino/${widget.menu!['id']}'),
-            headers: headers, body: body);
+            Uri.parse(
+                '$_kBase/api/menu-casino/${widget.menu!['id']}'),
+            headers: headers,
+            body: body);
       } else {
         await http.post(Uri.parse('$_kBase/api/menu-casino'),
             headers: headers, body: body);
@@ -962,7 +1027,8 @@ class _FormularioMenuState extends State<_FormularioMenu> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14)),
       child: SizedBox(
         width: 560,
         height: MediaQuery.of(context).size.height * 0.85,
@@ -970,15 +1036,19 @@ class _FormularioMenuState extends State<_FormularioMenu> {
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.fromLTRB(24, 20, 16, 16),
+              padding:
+                  const EdgeInsets.fromLTRB(24, 20, 16, 16),
               decoration: const BoxDecoration(
                 color: _kAzul,
-                borderRadius:
-                    BorderRadius.vertical(top: Radius.circular(14)),
+                borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(14)),
               ),
               child: Row(
                 children: [
-                  Text(_esEdicion ? 'Editar menú' : 'Nuevo menú del casino',
+                  Text(
+                      _esEdicion
+                          ? 'Editar menú'
+                          : 'Nuevo menú del casino',
                       style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -1003,7 +1073,6 @@ class _FormularioMenuState extends State<_FormularioMenu> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Fecha
                       const Text('Fecha del menú',
                           style: TextStyle(
                               fontSize: 13,
@@ -1019,12 +1088,15 @@ class _FormularioMenuState extends State<_FormularioMenu> {
                           decoration: BoxDecoration(
                             border: Border.all(
                                 color: const Color(0xFFD1D5DB)),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius:
+                                BorderRadius.circular(8),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.calendar_today_outlined,
-                                  size: 16, color: Color(0xFF6B7280)),
+                              const Icon(
+                                  Icons.calendar_today_outlined,
+                                  size: 16,
+                                  color: Color(0xFF6B7280)),
                               const SizedBox(width: 8),
                               Text(
                                 _fecha != null
@@ -1043,24 +1115,23 @@ class _FormularioMenuState extends State<_FormularioMenu> {
                       ),
                       const SizedBox(height: 14),
 
-                      // Nombre del menú
                       _campo('Nombre del menú', _nombreCtrl,
                           requerido: true,
                           hint: 'Ej: Menú del día, Menú ejecutivo...'),
                       const SizedBox(height: 10),
 
-                      // Descripción
                       _campo('Descripción (opcional)', _descCtrl,
                           maxLineas: 2,
                           hint: 'Ej: Incluye bebida y postre'),
                       const SizedBox(height: 10),
 
-                      // ── Precio del menú completo ──────────────────────
-                      _campo('Precio del menú (opcional)', _precioCtrl,
+                      _campo(
+                          'Precio del menú (opcional)', _precioCtrl,
                           hint: 'Ej: 3500',
                           teclado: TextInputType.number,
                           prefijo: const Padding(
-                            padding: EdgeInsets.only(left: 12, right: 4),
+                            padding: EdgeInsets.only(
+                                left: 12, right: 4),
                             child: Text('\$',
                                 style: TextStyle(
                                     fontSize: 14,
@@ -1072,11 +1143,11 @@ class _FormularioMenuState extends State<_FormularioMenu> {
                         'Si el menú tiene un precio único, ingrésalo aquí. '
                         'También puedes poner precios individuales por plato.',
                         style: TextStyle(
-                            fontSize: 11, color: Color(0xFF9CA3AF)),
+                            fontSize: 11,
+                            color: Color(0xFF9CA3AF)),
                       ),
                       const SizedBox(height: 20),
 
-                      // Platos
                       Row(
                         children: [
                           const Text('Platos',
@@ -1103,14 +1174,17 @@ class _FormularioMenuState extends State<_FormularioMenu> {
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             border: Border.all(
-                                color: const Color(0xFFE5E7EB), width: 1),
-                            borderRadius: BorderRadius.circular(8),
+                                color: const Color(0xFFE5E7EB),
+                                width: 1),
+                            borderRadius:
+                                BorderRadius.circular(8),
                             color: const Color(0xFFF9FAFB),
                           ),
                           child: const Column(
                             children: [
                               Icon(Icons.restaurant_outlined,
-                                  size: 32, color: Color(0xFFD1D5DB)),
+                                  size: 32,
+                                  color: Color(0xFFD1D5DB)),
                               SizedBox(height: 8),
                               Text('Agrega los platos del menú',
                                   style: TextStyle(
@@ -1123,12 +1197,14 @@ class _FormularioMenuState extends State<_FormularioMenu> {
                         ...List.generate(
                           _platos.length,
                           (i) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
+                            padding:
+                                const EdgeInsets.only(bottom: 12),
                             child: _FormularioPlato(
                               plato: _platos[i],
                               numero: i + 1,
                               onEliminar: () => _eliminarPlato(i),
-                              onImagenSeleccionada: () => setState(() {}),
+                              onImagenSeleccionada: () =>
+                                  setState(() {}),
                             ),
                           ),
                         ),
@@ -1153,9 +1229,10 @@ class _FormularioMenuState extends State<_FormularioMenu> {
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 12)),
+                              borderRadius:
+                                  BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12)),
                       child: const Text('Cancelar'),
                     ),
                   ),
@@ -1168,17 +1245,22 @@ class _FormularioMenuState extends State<_FormularioMenu> {
                         foregroundColor: _kAzul,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 12),
+                            borderRadius:
+                                BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12),
                       ),
                       child: _guardando
                           ? const SizedBox(
-                              width: 18, height: 18,
+                              width: 18,
+                              height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: _kAzul))
+                                  strokeWidth: 2,
+                                  color: _kAzul))
                           : Text(
-                              _esEdicion ? 'Guardar cambios' : 'Crear menú',
+                              _esEdicion
+                                  ? 'Guardar cambios'
+                                  : 'Crear menú',
                               style: const TextStyle(
                                   fontWeight: FontWeight.w600)),
                     ),
@@ -1193,8 +1275,10 @@ class _FormularioMenuState extends State<_FormularioMenu> {
   }
 
   String _formatFecha(DateTime dt) {
-    const meses = ['enero','febrero','marzo','abril','mayo','junio',
-                   'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const meses = [
+      'enero','febrero','marzo','abril','mayo','junio',
+      'julio','agosto','septiembre','octubre','noviembre','diciembre'
+    ];
     return '${dt.day} de ${meses[dt.month - 1]} ${dt.year}';
   }
 
@@ -1216,21 +1300,23 @@ class _FormularioMenuState extends State<_FormularioMenu> {
         labelText: label,
         hintText: hint,
         labelStyle: const TextStyle(fontSize: 13),
-        hintStyle:
-            const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+        hintStyle: const TextStyle(
+            fontSize: 12, color: Color(0xFF9CA3AF)),
         prefix: prefijo,
-        border:
-            OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: _kAzul),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12, vertical: 10),
         isDense: true,
       ),
       validator: requerido
-          ? (v) => (v == null || v.trim().isEmpty) ? 'Campo requerido' : null
+          ? (v) => (v == null || v.trim().isEmpty)
+              ? 'Campo requerido'
+              : null
           : null,
     );
   }
@@ -1280,7 +1366,8 @@ class _FormularioplatoState extends State<_FormularioPlato> {
       decoration: BoxDecoration(
         color: const Color(0xFFF9FAFB),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+        border:
+            Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
       ),
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -1289,7 +1376,8 @@ class _FormularioplatoState extends State<_FormularioPlato> {
           Row(
             children: [
               Container(
-                width: 22, height: 22,
+                width: 22,
+                height: 22,
                 decoration: BoxDecoration(
                     color: _kAzul,
                     borderRadius: BorderRadius.circular(6)),
@@ -1317,20 +1405,21 @@ class _FormularioplatoState extends State<_FormularioPlato> {
           ),
           const SizedBox(height: 12),
 
-          // Imagen
           Row(
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: SizedBox(
-                  width: 60, height: 60,
+                  width: 60,
+                  height: 60,
                   child: widget.plato.imagenBytes != null
                       ? Image.memory(widget.plato.imagenBytes!,
                           fit: BoxFit.cover)
                       : widget.plato.imagenUrl != null
                           ? Image.network(widget.plato.imagenUrl!,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _placeholder())
+                              errorBuilder: (_, __, ___) =>
+                                  _placeholder())
                           : _placeholder(),
                 ),
               ),
@@ -1340,11 +1429,16 @@ class _FormularioplatoState extends State<_FormularioPlato> {
                 children: [
                   OutlinedButton.icon(
                     onPressed: _seleccionarImagen,
-                    icon: const Icon(Icons.add_photo_alternate_outlined,
-                        size: 14, color: _kAzul),
+                    icon: const Icon(
+                        Icons.add_photo_alternate_outlined,
+                        size: 14,
+                        color: _kAzul),
                     label: Text(
-                        tieneImagen ? 'Cambiar imagen' : 'Agregar imagen',
-                        style: const TextStyle(color: _kAzul, fontSize: 11)),
+                        tieneImagen
+                            ? 'Cambiar imagen'
+                            : 'Agregar imagen',
+                        style: const TextStyle(
+                            color: _kAzul, fontSize: 11)),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: _kAzul),
                       shape: RoundedRectangleBorder(
@@ -1362,8 +1456,8 @@ class _FormularioplatoState extends State<_FormularioPlato> {
                         widget.plato.imagenNombre = null;
                       }),
                       child: const Text('Quitar imagen',
-                          style:
-                              TextStyle(fontSize: 10, color: Colors.red)),
+                          style: TextStyle(
+                              fontSize: 10, color: Colors.red)),
                     ),
                   ],
                 ],
@@ -1372,13 +1466,12 @@ class _FormularioplatoState extends State<_FormularioPlato> {
           ),
           const SizedBox(height: 10),
 
-          // Nombre y etiqueta
           Row(
             children: [
               Expanded(
                   flex: 3,
-                  child: _campoPlato(
-                      'Nombre del plato *', widget.plato.nombreCtrl,
+                  child: _campoPlato('Nombre del plato *',
+                      widget.plato.nombreCtrl,
                       requerido: true)),
               const SizedBox(width: 8),
               Expanded(
@@ -1390,17 +1483,18 @@ class _FormularioplatoState extends State<_FormularioPlato> {
           ),
           const SizedBox(height: 8),
 
-          _campoPlato('Descripción (opcional)', widget.plato.descCtrl,
+          _campoPlato(
+              'Descripción (opcional)', widget.plato.descCtrl,
               maxLineas: 2),
           const SizedBox(height: 8),
 
-          // Precio del plato — opcional
           Row(
             children: [
               SizedBox(
                 width: 160,
                 child: _campoPlato(
-                    'Precio del plato (opcional)', widget.plato.precioCtrl,
+                    'Precio del plato (opcional)',
+                    widget.plato.precioCtrl,
                     hint: 'Ej: 1500',
                     teclado: TextInputType.number),
               ),
@@ -1408,7 +1502,8 @@ class _FormularioplatoState extends State<_FormularioPlato> {
               const Expanded(
                 child: Text(
                   'Déjalo vacío si el precio va en el menú completo.',
-                  style: TextStyle(fontSize: 10, color: Color(0xFF9CA3AF)),
+                  style: TextStyle(
+                      fontSize: 10, color: Color(0xFF9CA3AF)),
                 ),
               ),
             ],
@@ -1442,23 +1537,24 @@ class _FormularioplatoState extends State<_FormularioPlato> {
         labelText: label,
         hintText: hint,
         labelStyle: const TextStyle(fontSize: 12),
-        hintStyle:
-            const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
+        hintStyle: const TextStyle(
+            fontSize: 11, color: Color(0xFF9CA3AF)),
         filled: true,
         fillColor: Colors.white,
-        border:
-            OutlineInputBorder(borderRadius: BorderRadius.circular(7)),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(7)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(7),
           borderSide: const BorderSide(color: _kAzul),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10, vertical: 8),
         isDense: true,
       ),
       validator: requerido
-          ? (v) =>
-              (v == null || v.trim().isEmpty) ? 'Requerido' : null
+          ? (v) => (v == null || v.trim().isEmpty)
+              ? 'Requerido'
+              : null
           : null,
     );
   }
