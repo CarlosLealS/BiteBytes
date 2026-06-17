@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:bitebytes_app/config/env.dart';
 import 'alumnos/alumno_home_page.dart';
 import 'duenio/duenio_shell.dart';
+import 'admin/admin_shell.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -65,10 +66,12 @@ class _LoginPageState extends State<LoginPage> {
 
   void _navegarSegunRol(Map<String, dynamic> usuario) {
     final rol = usuario['rol'];
-    if (rol == 'duenio_tienda'    ||
-        rol == 'admin'            ||
-        rol == 'super_admin'      ||
-        rol == 'trabajador_tienda') {
+    if (rol == 'admin' || rol == 'super_admin') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => AdminShell(usuario: usuario)),
+      );
+    } else if (rol == 'duenio_tienda' || rol == 'trabajador_tienda') {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => DuenioShell(usuario: usuario)),

@@ -23,6 +23,7 @@ app.use('/api', require('./routes/alumnoRoutes'));
 app.use('/api', require('./routes/publicacionesRoutes'));
 app.use('/api', require('./routes/menuCasinoRoutes'));
 app.use('/api', require('./routes/tiendaRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
 
 // Servir imágenes estáticas
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
