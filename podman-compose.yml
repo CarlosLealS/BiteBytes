@@ -6,6 +6,7 @@ services:
     ports:
       - "0.0.0.0:8080:80"
     restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -13,3 +14,21 @@ services:
     ports:
       - "0.0.0.0:3000:3000"
     restart: unless-stopped
+    depends_on:
+      - postgres
+
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    container_name: bitebytes-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=Bitebytes2026Local
+      - POSTGRES_DB=bitebytes
+    ports:
+      - "0.0.0.0:5432:5432"
+    volumes:
+      - bitebytes_pgdata:/var/lib/postgresql/data
+
+volumes:
+  bitebytes_pgdata:
