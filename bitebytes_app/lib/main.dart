@@ -36,6 +36,8 @@ class MyApp extends StatelessWidget {
       paginaInicial = RegistroDuenioPage(token: token!);
     } else if (esResetContrasena) {
       paginaInicial = ResetearContrasenaPage(token: token!);
+    } else if (token != null && token.isNotEmpty) {
+      paginaInicial = const LoginPage();
     } else {
       paginaInicial = const HomePage();
     }

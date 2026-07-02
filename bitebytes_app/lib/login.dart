@@ -33,6 +33,9 @@ class _LoginPageState extends State<LoginPage> {
   void _verificarTokenGoogle() {
     final t = Uri.base.queryParameters['token'];
     if (t != null && t.isNotEmpty) {
+      // Limpiar la URL para ocultar el token por seguridad
+      html.window.history.replaceState(null, '', html.window.location.pathname);
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _procesarToken(t);
       });
