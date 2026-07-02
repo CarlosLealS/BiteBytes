@@ -362,6 +362,106 @@ const actualizarUbicacionTienda = async (req, res) => {
   }
 };
 
+// GET /api/admin/admins
+const listarAdmins = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.nombre, u.email, u.activo, u.creado_en, r.nombre AS rol
+       FROM usuarios u
+       JOIN roles r ON r.id = u.rol_id
+       WHERE r.nombre = 'admin'
+       ORDER BY u.creado_en DESC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error listando admins:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// POST /api/admin/admins
+const crearAdmin = async (req, res) => {
+  const { nombre, email, password } = req.body;
+
+  if (!nombre || !email || !password) {
+    return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+  }
+
+  try {
+    const existe = await pool.query('SELECT id FROM usuarios WHERE email = $1', [email]);
+    if (existe.rows.length > 0) {
+      return res.status(409).json({ error: 'El email ya está registrado' });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
+    const rolAdminResult = await pool.query("SELECT id FROM roles WHERE nombre = 'admin'");
+    if (rolAdminResult.rows.length === 0) {
+      return res.status(500).json({ error: 'Rol admin no encontrado en la base de datos' });
+    }
+    const rolAdminId = rolAdminResult.rows[0].id;
+
+    const result = await pool.query(
+      `INSERT INTO usuarios (nombre, email, password_hash, rol_id)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, nombre, email, creado_en`,
+      [nombre, email, password_hash, rolAdminId]
+    );
+
+    res.status(201).json({ mensaje: 'Administrador creado exitosamente', admin: result.rows[0] });
+  } catch (error) {
+    console.error('Error creando admin:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// DELETE /api/admin/admins/:id
+const eliminarAdmin = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const resultAdminCheck = await pool.query(
+      `SELECT u.id, r.nombre AS rol 
+       FROM usuarios u
+       JOIN roles r ON r.id = u.rol_id
+       WHERE u.id = $1`,
+      [id]
+    );
+
+    if (resultAdminCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    if (resultAdminCheck.rows[0].rol !== 'admin') {
+      return res.status(400).json({ error: 'El usuario no es un administrador' });
+    }
+
+    // Eliminar dependencias
+    await pool.query('DELETE FROM reset_password_tokens WHERE usuario_id = $1', [id]);
+    await pool.query('DELETE FROM sanciones WHERE admin_id = $1 OR usuario_id = $1', [id, id]);
+    await pool.query('DELETE FROM resenias WHERE usuario_id = $1', [id]);
+    await pool.query('DELETE FROM resenias_platos WHERE usuario_id = $1', [id]);
+    await pool.query('DELETE FROM resenias_tienda WHERE usuario_id = $1', [id]);
+    await pool.query('DELETE FROM favoritos WHERE usuario_id = $1', [id]);
+    await pool.query('DELETE FROM resenias_publicacion WHERE usuario_id = $1', [id]);
+
+    const result = await pool.query(
+      `DELETE FROM usuarios 
+       WHERE id = $1 AND rol_id = (SELECT id FROM roles WHERE nombre = 'admin')
+       RETURNING id`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Administrador no encontrado' });
+    }
+
+    res.json({ mensaje: 'Administrador eliminado correctamente' });
+  } catch (error) {
+    console.error('Error eliminando admin:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   listarTiendas,
   invitarDuenio,
@@ -373,4 +473,7 @@ module.exports = {
   listarReportes,
   resolverReporte,
   actualizarUbicacionTienda,
+  listarAdmins,
+  crearAdmin,
+  eliminarAdmin,
 };

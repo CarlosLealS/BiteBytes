@@ -12,10 +12,16 @@ const {
   listarReportes,
   resolverReporte,
   actualizarUbicacionTienda,
+  listarAdmins,
+  crearAdmin,
+  eliminarAdmin,
 } = require('../controllers/adminController');
 
 // Solo administradores o super admins
 const soloAdmin = [verificarToken, soloRoles('admin', 'super_admin')];
+
+// Solo super admins
+const soloSuperAdmin = [verificarToken, soloRoles('super_admin')];
 
 // Tiendas
 router.get('/tiendas',        ...soloAdmin, listarTiendas);
@@ -34,5 +40,10 @@ router.post('/usuarios/:id/resetear-contrasena', ...soloAdmin, enviarReseteoCont
 // Reportes y sanciones
 router.get('/reportes',                 ...soloAdmin, listarReportes);
 router.post('/reportes/:id/resolver',   ...soloAdmin, resolverReporte);
+
+// Gestión de Admins (Solo Super Admin)
+router.get('/admins',        ...soloSuperAdmin, listarAdmins);
+router.post('/admins',       ...soloSuperAdmin, crearAdmin);
+router.delete('/admins/:id', ...soloSuperAdmin, eliminarAdmin);
 
 module.exports = router;
