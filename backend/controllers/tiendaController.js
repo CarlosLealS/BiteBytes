@@ -289,28 +289,53 @@ const crearTrabajador = async (req, res) => {
 // DELETE /api/tienda/:tiendaId/trabajadores/:trabajadorId
 const eliminarTrabajador = async (req, res) => {
   const { tiendaId, trabajadorId } = req.params;
+  const client = await pool.connect();
   try {
-    const tienda = await pool.query(
+    await client.query('BEGIN');
+
+    const tienda = await client.query(
       'SELECT id FROM tiendas WHERE id = $1 AND duenio_id = $2',
       [tiendaId, req.usuario.id]
     );
     if (tienda.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(403).json({ error: 'No tienes permiso para esta tienda' });
     }
 
-    const result = await pool.query(
-      'DELETE FROM trabajadores_tienda WHERE id = $1 AND tienda_id = $2 RETURNING id',
+    // Obtener el usuario_id del trabajador antes de borrarlo
+    const trabResult = await client.query(
+      'DELETE FROM trabajadores_tienda WHERE id = $1 AND tienda_id = $2 RETURNING usuario_id',
       [trabajadorId, tiendaId]
     );
 
-    if (result.rows.length === 0) {
+    if (trabResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Trabajador no encontrado' });
     }
 
+    const usuarioId = trabResult.rows[0].usuario_id;
+
+    // Eliminar también la cuenta del usuario (rol trabajador_tienda = rol_id 4)
+    // Solo si no pertenece a otra tienda
+    const otraTienda = await client.query(
+      'SELECT 1 FROM trabajadores_tienda WHERE usuario_id = $1 LIMIT 1',
+      [usuarioId]
+    );
+    if (otraTienda.rows.length === 0) {
+      await client.query(
+        'DELETE FROM usuarios WHERE id = $1 AND rol_id = 4',
+        [usuarioId]
+      );
+    }
+
+    await client.query('COMMIT');
     res.json({ mensaje: 'Trabajador eliminado de la tienda correctamente' });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error eliminando trabajador:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    client.release();
   }
 };
 
@@ -513,8 +538,10 @@ const actualizarTienda = async (req, res) => {
   try {
     const check = await pool.query(
       `SELECT t.id FROM tiendas t 
-       LEFT JOIN trabajadores_tienda tt ON tt.tienda_id = t.id AND tt.usuario_id = $2 
-       WHERE t.id = $1 AND (t.duenio_id = $2 OR tt.usuario_id IS NOT NULL)`,
+       WHERE t.id = $1 AND (
+         t.duenio_id = $2
+         OR EXISTS (SELECT 1 FROM trabajadores_tienda tt WHERE tt.tienda_id = t.id AND tt.usuario_id = $2)
+       )`,
       [id, req.usuario.id]
     );
     

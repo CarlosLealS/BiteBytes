@@ -46,8 +46,10 @@ const crearProducto = async (req, res) => {
   try {
     const tienda = await pool.query(
       `SELECT t.id FROM tiendas t 
-       LEFT JOIN trabajadores_tienda tt ON tt.tienda_id = t.id AND tt.usuario_id = $2 
-       WHERE t.id = $1 AND (t.duenio_id = $2 OR tt.usuario_id IS NOT NULL)`,
+       WHERE t.id = $1 AND (
+         t.duenio_id = $2 
+         OR EXISTS (SELECT 1 FROM trabajadores_tienda tt WHERE tt.tienda_id = t.id AND tt.usuario_id = $2)
+       )`,
       [tienda_id, req.usuario.id]
     );
     if (tienda.rows.length === 0) {
@@ -80,8 +82,10 @@ const editarProducto = async (req, res) => {
     const check = await pool.query(
       `SELECT p.id, p.imagen_public_id FROM productos p
        JOIN tiendas t ON t.id = p.tienda_id
-       LEFT JOIN trabajadores_tienda tt ON tt.tienda_id = t.id AND tt.usuario_id = $2
-       WHERE p.id = $1 AND (t.duenio_id = $2 OR tt.usuario_id IS NOT NULL)`,
+       WHERE p.id = $1 AND (
+         t.duenio_id = $2
+         OR EXISTS (SELECT 1 FROM trabajadores_tienda tt WHERE tt.tienda_id = t.id AND tt.usuario_id = $2)
+       )`,
       [id, req.usuario.id]
     );
     if (check.rows.length === 0) {
@@ -122,8 +126,10 @@ const toggleDisponible = async (req, res) => {
     const check = await pool.query(
       `SELECT p.id FROM productos p
        JOIN tiendas t ON t.id = p.tienda_id
-       LEFT JOIN trabajadores_tienda tt ON tt.tienda_id = t.id AND tt.usuario_id = $2
-       WHERE p.id = $1 AND (t.duenio_id = $2 OR tt.usuario_id IS NOT NULL)`,
+       WHERE p.id = $1 AND (
+         t.duenio_id = $2
+         OR EXISTS (SELECT 1 FROM trabajadores_tienda tt WHERE tt.tienda_id = t.id AND tt.usuario_id = $2)
+       )`,
       [id, req.usuario.id]
     );
     if (check.rows.length === 0) {
@@ -149,8 +155,10 @@ const eliminarProducto = async (req, res) => {
     const check = await pool.query(
       `SELECT p.id, p.imagen_public_id FROM productos p
        JOIN tiendas t ON t.id = p.tienda_id
-       LEFT JOIN trabajadores_tienda tt ON tt.tienda_id = t.id AND tt.usuario_id = $2
-       WHERE p.id = $1 AND (t.duenio_id = $2 OR tt.usuario_id IS NOT NULL)`,
+       WHERE p.id = $1 AND (
+         t.duenio_id = $2
+         OR EXISTS (SELECT 1 FROM trabajadores_tienda tt WHERE tt.tienda_id = t.id AND tt.usuario_id = $2)
+       )`,
       [id, req.usuario.id]
     );
     if (check.rows.length === 0) {

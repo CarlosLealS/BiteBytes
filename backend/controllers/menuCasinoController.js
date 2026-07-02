@@ -41,8 +41,10 @@ const listarMenusCasino = async (req, res) => {
     const tienda = await pool.query(
       `SELECT t.id FROM tiendas t
        JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
-       LEFT JOIN trabajadores_tienda tra ON tra.tienda_id = t.id AND tra.usuario_id = $2
-       WHERE t.id = $1 AND (t.duenio_id = $2 OR tra.usuario_id IS NOT NULL) AND tt.es_casino = true`,
+       WHERE t.id = $1 AND tt.es_casino = true AND (
+         t.duenio_id = $2
+         OR EXISTS (SELECT 1 FROM trabajadores_tienda tra WHERE tra.tienda_id = t.id AND tra.usuario_id = $2)
+       )`,
       [id, req.usuario.id]
     );
     if (tienda.rows.length === 0) {
@@ -91,8 +93,10 @@ const crearMenuCasino = async (req, res) => {
     const tienda = await client.query(
       `SELECT t.id FROM tiendas t
        JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
-       LEFT JOIN trabajadores_tienda tra ON tra.tienda_id = t.id AND tra.usuario_id = $2
-       WHERE t.id = $1 AND (t.duenio_id = $2 OR tra.usuario_id IS NOT NULL) AND tt.es_casino = true`,
+       WHERE t.id = $1 AND tt.es_casino = true AND (
+         t.duenio_id = $2
+         OR EXISTS (SELECT 1 FROM trabajadores_tienda tra WHERE tra.tienda_id = t.id AND tra.usuario_id = $2)
+       )`,
       [tienda_id, req.usuario.id]
     );
     if (tienda.rows.length === 0) {
@@ -151,8 +155,10 @@ const editarMenuCasino = async (req, res) => {
       `SELECT mc.id FROM menu_casino mc
        JOIN tiendas t ON t.id = mc.tienda_id
        JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
-       LEFT JOIN trabajadores_tienda tra ON tra.tienda_id = t.id AND tra.usuario_id = $2
-       WHERE mc.id = $1 AND (t.duenio_id = $2 OR tra.usuario_id IS NOT NULL) AND tt.es_casino = true`,
+       WHERE mc.id = $1 AND tt.es_casino = true AND (
+         t.duenio_id = $2
+         OR EXISTS (SELECT 1 FROM trabajadores_tienda tra WHERE tra.tienda_id = t.id AND tra.usuario_id = $2)
+       )`,
       [id, req.usuario.id]
     );
     if (check.rows.length === 0) {
@@ -202,8 +208,10 @@ const eliminarMenuCasino = async (req, res) => {
       `SELECT mc.id FROM menu_casino mc
        JOIN tiendas t ON t.id = mc.tienda_id
        JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
-       LEFT JOIN trabajadores_tienda tra ON tra.tienda_id = t.id AND tra.usuario_id = $2
-       WHERE mc.id = $1 AND (t.duenio_id = $2 OR tra.usuario_id IS NOT NULL) AND tt.es_casino = true`,
+       WHERE mc.id = $1 AND tt.es_casino = true AND (
+         t.duenio_id = $2
+         OR EXISTS (SELECT 1 FROM trabajadores_tienda tra WHERE tra.tienda_id = t.id AND tra.usuario_id = $2)
+       )`,
       [id, req.usuario.id]
     );
     if (check.rows.length === 0) {
