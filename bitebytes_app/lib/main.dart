@@ -3,6 +3,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'login.dart';
 import 'registro_trabajador_page.dart';
+import 'registro_duenio_page.dart';
+import 'resetear_contrasena_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,10 +17,27 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Detectar token de invitación en la URL
+    // Detectar token y ruta en la URL
     final token = Uri.base.queryParameters['token'];
+    final path  = Uri.base.path;
+
     final esRegistroTrabajador =
-        Uri.base.path.contains('registro-trabajador') && token != null;
+        path.contains('registro-trabajador') && token != null;
+    final esRegistroDuenio =
+        path.contains('registro-duenio') && token != null;
+    final esResetContrasena =
+        path.contains('resetear-contrasena') && token != null;
+
+    Widget paginaInicial;
+    if (esRegistroTrabajador) {
+      paginaInicial = RegistroTrabajadorPage(token: token!);
+    } else if (esRegistroDuenio) {
+      paginaInicial = RegistroDuenioPage(token: token!);
+    } else if (esResetContrasena) {
+      paginaInicial = ResetearContrasenaPage(token: token!);
+    } else {
+      paginaInicial = const LoginPage();
+    }
 
     return MaterialApp(
       title: 'BiteBytes',
@@ -30,9 +49,7 @@ class MyApp extends StatelessWidget {
       ],
       supportedLocales: const [Locale('es', 'CL')],
       locale: const Locale('es', 'CL'),
-      home: esRegistroTrabajador
-          ? RegistroTrabajadorPage(token: token!)
-          : const LoginPage(),
+      home: paginaInicial,
     );
   }
 }

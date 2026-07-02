@@ -83,10 +83,57 @@ class _AdminTiendasPageState extends State<AdminTiendasPage> {
     }
   }
 
+  Future<void> _enviarReseteoContrasena(Map<String, dynamic> tienda) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Resetear contraseña'),
+        content: Text(
+          '¿Enviar un correo de restablecimiento de contraseña a ${tienda['duenio_nombre']} (${tienda['duenio_email']})?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: _kAzul),
+            child: const Text('Enviar correo', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    try {
+      final res = await http.post(
+        Uri.parse('$_base/api/admin/usuarios/${tienda['duenio_id']}/resetear-contrasena'),
+        headers: _headers,
+      );
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Correo enviado a ${tienda['duenio_email']}')),
+        );
+      } else {
+        final data = jsonDecode(res.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['error'] ?? 'Error al enviar correo')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error de conexión')));
+      }
+    }
+  }
+
   void _abrirFormulario() {
     showDialog(
       context: context,
-      builder: (_) => _FormularioCrearTienda(
+      builder: (_) => _FormularioInvitarDuenio(
         usuario: widget.usuario,
         onGuardado: _cargarTiendas,
       ),
@@ -135,9 +182,22 @@ class _AdminTiendasPageState extends State<AdminTiendasPage> {
                             ),
                             title: Text(t['nombre'], style: const TextStyle(fontWeight: FontWeight.bold)),
                             subtitle: Text('${t['tipo']} • Dueño: ${t['duenio_nombre']} (${t['duenio_email']})'),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.red),
-                              onPressed: () => _eliminarTienda(t['id']),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Botón reseteo contraseña
+                                IconButton(
+                                  tooltip: 'Enviar reseteo de contraseña',
+                                  icon: const Icon(Icons.lock_reset, color: _kAzul),
+                                  onPressed: () => _enviarReseteoContrasena(t),
+                                ),
+                                // Botón eliminar
+                                IconButton(
+                                  tooltip: 'Eliminar tienda',
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                  onPressed: () => _eliminarTienda(t['id']),
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -151,75 +211,79 @@ class _AdminTiendasPageState extends State<AdminTiendasPage> {
   }
 }
 
-class _FormularioCrearTienda extends StatefulWidget {
+// ──────────────────────────────────────────────
+// Formulario simplificado: solo email + tipo tienda
+// ──────────────────────────────────────────────
+class _FormularioInvitarDuenio extends StatefulWidget {
   final Map<String, dynamic> usuario;
   final VoidCallback onGuardado;
-  const _FormularioCrearTienda({required this.usuario, required this.onGuardado});
+  const _FormularioInvitarDuenio({required this.usuario, required this.onGuardado});
 
   @override
-  State<_FormularioCrearTienda> createState() => _FormularioCrearTiendaState();
+  State<_FormularioInvitarDuenio> createState() => _FormularioInvitarDuenioState();
 }
 
-class _FormularioCrearTiendaState extends State<_FormularioCrearTienda> {
-  final _nombreTiendaCtrl  = TextEditingController();
-  final _descCtrl          = TextEditingController();
-  final _duenioNombreCtrl  = TextEditingController();
-  final _duenioEmailCtrl   = TextEditingController();
-  final _duenioPassCtrl    = TextEditingController();
-  
-  int _tipoTiendaId = 1;
-  bool _guardando   = false;
+class _FormularioInvitarDuenioState extends State<_FormularioInvitarDuenio> {
+  final _emailCtrl = TextEditingController();
+
+  int  _tipoTiendaId = 1;
+  bool _enviando     = false;
 
   String get _base  => Env.apiUrl;
   String get _token => widget.usuario['token'] ?? '';
 
-  Future<void> _guardar() async {
-    final nombreT = _nombreTiendaCtrl.text.trim();
-    final dNombre = _duenioNombreCtrl.text.trim();
-    final dEmail  = _duenioEmailCtrl.text.trim();
-    final dPass   = _duenioPassCtrl.text.trim();
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    super.dispose();
+  }
 
-    if (nombreT.isEmpty || dNombre.isEmpty || dEmail.isEmpty || dPass.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rellena todos los campos obligatorios')));
+  Future<void> _enviar() async {
+    final email = _emailCtrl.text.trim();
+
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Introduce un email válido')),
+      );
       return;
     }
 
-    setState(() => _guardando = true);
+    setState(() => _enviando = true);
 
     try {
-      final body = {
-        'nombre_tienda': nombreT,
-        'descripcion': _descCtrl.text.trim(),
-        'tipo_tienda_id': _tipoTiendaId,
-        'duenio_nombre': dNombre,
-        'duenio_email': dEmail,
-        'duenio_password': dPass,
-      };
-
       final res = await http.post(
         Uri.parse('$_base/api/admin/tiendas'),
         headers: {
           'Authorization': 'Bearer $_token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode(body),
+        body: jsonEncode({
+          'email':          email,
+          'tipo_tienda_id': _tipoTiendaId,
+        }),
       );
 
       if (!mounted) return;
-      if (res.statusCode == 201) {
-        widget.onGuardado();
+
+      if (res.statusCode == 200) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tienda creada')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invitación enviada a $email')),
+        );
       } else {
         final data = jsonDecode(res.body);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['error'] ?? 'Error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['error'] ?? 'Error al enviar invitación')),
+        );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error de conexión')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error de conexión')),
+        );
       }
     } finally {
-      if (mounted) setState(() => _guardando = false);
+      if (mounted) setState(() => _enviando = false);
     }
   }
 
@@ -228,32 +292,60 @@ class _FormularioCrearTiendaState extends State<_FormularioCrearTienda> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
-        width: 450,
+        width: 400,
         padding: const EdgeInsets.all(24),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Crear Tienda', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _kAzul)),
-              const SizedBox(height: 16),
-              
-              const Text('Datos de la Tienda', style: TextStyle(fontWeight: FontWeight.w600)),
+              // Encabezado
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _kDorado.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.email_outlined, color: _kDorado, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Invitar dueño de tienda',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: _kAzul),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 8),
-              TextField(
-                controller: _nombreTiendaCtrl,
-                decoration: const InputDecoration(labelText: 'Nombre de tienda', border: OutlineInputBorder()),
+              const Text(
+                'El dueño recibirá un correo con un enlace para completar el registro de su cuenta y su tienda.',
+                style: TextStyle(fontSize: 13, color: Colors.black54),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
+
+              // Email
               TextField(
-                controller: _descCtrl,
-                decoration: const InputDecoration(labelText: 'Descripción (Opcional)', border: OutlineInputBorder()),
-                maxLines: 2,
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Email del dueño',
+                  prefixIcon: Icon(Icons.alternate_email),
+                  border: OutlineInputBorder(),
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
+
+              // Tipo de tienda
               DropdownButtonFormField<int>(
                 value: _tipoTiendaId,
-                decoration: const InputDecoration(labelText: 'Tipo', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                  labelText: 'Tipo de tienda',
+                  prefixIcon: Icon(Icons.store_outlined),
+                  border: OutlineInputBorder(),
+                ),
                 items: const [
                   DropdownMenuItem(value: 1, child: Text('Tienda')),
                   DropdownMenuItem(value: 2, child: Text('Casino')),
@@ -264,40 +356,29 @@ class _FormularioCrearTiendaState extends State<_FormularioCrearTienda> {
               ),
 
               const SizedBox(height: 24),
-              const Text('Datos del Dueño', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _duenioNombreCtrl,
-                decoration: const InputDecoration(labelText: 'Nombre del dueño', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _duenioEmailCtrl,
-                decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _duenioPassCtrl,
-                decoration: const InputDecoration(labelText: 'Contraseña', border: OutlineInputBorder()),
-                obscureText: true,
-              ),
 
-              const SizedBox(height: 24),
+              // Botones
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _guardando ? null : () => Navigator.pop(context),
+                    onPressed: _enviando ? null : () => Navigator.pop(context),
                     child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
                   ),
                   const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _guardando ? null : _guardar,
-                    style: ElevatedButton.styleFrom(backgroundColor: _kAzul, foregroundColor: Colors.white),
-                    child: _guardando
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text('Crear Tienda'),
+                  ElevatedButton.icon(
+                    onPressed: _enviando ? null : _enviar,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kDorado,
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: _enviando
+                        ? const SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.send, size: 18),
+                    label: Text(_enviando ? 'Enviando…' : 'Enviar invitación'),
                   ),
                 ],
               ),

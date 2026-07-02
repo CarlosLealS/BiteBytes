@@ -3,7 +3,15 @@ const router   = express.Router();
 const passport = require('passport');
 const jwt      = require('jsonwebtoken');
 const pool     = require('../config/db');
-const { registrar, login, logout } = require('../controllers/authController');
+const {
+  registrar,
+  login,
+  logout,
+  verificarInvitacionDuenio,
+  registrarDuenio,
+  verificarResetContrasena,
+  resetearContrasena,
+} = require('../controllers/authController');
 const { verificarToken } = require('../middleware/Authmiddleware');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
@@ -11,6 +19,14 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 router.post('/registro', registrar);
 router.post('/login',    login);
 router.post('/logout',   verificarToken, logout);
+
+// Invitación dueño de tienda — rutas públicas
+router.get('/verificar-invitacion-duenio', verificarInvitacionDuenio);
+router.post('/registro-duenio',            registrarDuenio);
+
+// Reseteo de contraseña — rutas públicas
+router.get('/verificar-reset-contrasena', verificarResetContrasena);
+router.post('/resetear-contrasena',       resetearContrasena);
 
 router.get('/google', passport.authenticate('google', {
   scope:   ['profile', 'email'],
