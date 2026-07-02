@@ -93,50 +93,106 @@ class _SearchPageState extends State<SearchPage> {
       builder: (context, constraints) {
         final ancho = constraints.maxWidth;
         final alto  = constraints.maxHeight;
+        final esMobile = ancho < 600;
 
+        if (esMobile) {
+          // ── MÓVIL ─────────────────────────────────────────────────────────────
+          // El mapa ocupa toda la altura disponible; el ancho es proporcional.
+          // Se usa SingleChildScrollView horizontal para poder deslizar el mapa.
+          final double mapH = alto;
+          final double mapW = mapH * (_mapAncho / _mapAlto); // ancho proporcional
+
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(color: const Color(0xFFE5E7EB)),
+
+              // Mapa + pines desplazables horizontalmente
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const ClampingScrollPhysics(),
+                child: SizedBox(
+                  width: mapW,
+                  height: mapH,
+                  child: Stack(
+                    children: [
+                      // Imagen a tamaño exacto
+                      Positioned.fill(
+                        child: Image.asset('assets/MapaUCN.png', fit: BoxFit.fill),
+                      ),
+
+                      // Pines — coordenadas relativas al tamaño del mapa móvil
+                      ...tiendas
+                          .where((t) => t.tieneCoordenadas)
+                          .map((tienda) => Positioned(
+                                left: (tienda.pixelX! / _mapAncho) * mapW - 18,
+                                top:  (tienda.pixelY! / _mapAlto)  * mapH - 36,
+                                child: GestureDetector(
+                                  onTap: () => _mostrarTienda(tienda),
+                                  child: Tooltip(
+                                    message: tienda.nombre,
+                                    child: const Icon(
+                                      Icons.location_on,
+                                      color: Colors.red,
+                                      size: 36,
+                                      shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                                    ),
+                                  ),
+                                ),
+                              )),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Chips encima del mapa (fuera del scroll)
+              Positioned(
+                top: 8,
+                left: 0,
+                right: 0,
+                child: _buildChips(tiendas),
+              ),
+            ],
+          );
+        }
+
+        // ── ESCRITORIO ───────────────────────────────────────────────────────────
+        // Imagen y pines usan el mismo sistema de offsets → pines siempre alineados.
         final relacion         = _mapAncho / _mapAlto;
         final relacionPantalla = ancho / alto;
 
-        // Calculamos el tamaño y offset de la imagen de forma consistente
-        // Este mismo cálculo se usa para colocar los pines => nunca desalineados
         final double imgAncho;
         final double imgAlto;
         final double offsetX;
         final double offsetY;
 
         if (relacionPantalla > relacion) {
-          // Pantalla más ancha que el mapa → ajustamos por anchura
           imgAncho = ancho;
           imgAlto  = ancho / relacion;
           offsetX  = 0;
           offsetY  = (alto - imgAlto) / 2;
         } else {
-          // Pantalla más alta que el mapa → ajustamos por altura
           imgAncho = alto * relacion;
           imgAlto  = alto;
           offsetX  = (ancho - imgAncho) / 2;
           offsetY  = 0;
         }
 
-        // En móvil el mapa puede ser más grande que la pantalla → InteractiveViewer
-        final bool esMobile = ancho < 600;
-
-        Widget contenidoMapa = Stack(
-          clipBehavior: Clip.none,
+        return Stack(
+          fit: StackFit.expand,   // ← ocupa todo el espacio del Expanded padre
           children: [
-            // Imagen del mapa con el MISMO tamaño y offset que los pines
+            Container(color: const Color(0xFFE5E7EB)),
+
+            // Imagen explícitamente posicionada (mismo math que los pines)
             Positioned(
-              left: offsetX,
-              top:  offsetY,
+              left:   offsetX,
+              top:    offsetY,
               width:  imgAncho,
               height: imgAlto,
-              child: Image.asset(
-                'assets/MapaUCN.png',
-                fit: BoxFit.fill,
-              ),
+              child: Image.asset('assets/MapaUCN.png', fit: BoxFit.fill),
             ),
 
-            // Pines posicionados sobre la imagen
+            // Pines
             ...tiendas
                 .where((t) => t.tieneCoordenadas)
                 .map((tienda) => Positioned(
@@ -155,76 +211,49 @@ class _SearchPageState extends State<SearchPage> {
                         ),
                       ),
                     )),
-          ],
-        );
 
-        return Stack(
-          children: [
-            // Fondo
-            Container(color: const Color(0xFFE5E7EB)),
-
-            // Mapa: scrolleable en móvil, estático en escritorio
-            if (esMobile)
-              InteractiveViewer(
-                boundaryMargin: const EdgeInsets.all(0),
-                minScale: 0.8,
-                maxScale: 4.0,
-                constrained: true,
-                child: SizedBox(
-                  width: ancho,
-                  height: alto,
-                  child: contenidoMapa,
-                ),
-              )
-            else
-              SizedBox(
-                width: ancho,
-                height: alto,
-                child: contenidoMapa,
-              ),
-
-            // Chips de tiendas (siempre visibles encima)
+            // Chips
             Positioned(
               top: 8,
               left: 0,
               right: 0,
-              child: _cargando
-                  ? const SizedBox(
-                      height: 36,
-                      child: Center(
-                        child: CircularProgressIndicator(color: _kNaranja, strokeWidth: 2),
-                      ),
-                    )
-                  : SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: tiendas
-                            .map((tienda) => Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                                  child: ElevatedButton(
-                                    onPressed: () => _mostrarTienda(tienda),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _kNaranja,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 18, vertical: 10),
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(20)),
-                                      elevation: 2,
-                                    ),
-                                    child: Text(tienda.nombre,
-                                        style: const TextStyle(
-                                            fontSize: 14, fontWeight: FontWeight.w600)),
-                                  ),
-                                ))
-                            .toList(),
-                      ),
-                    ),
+              child: _buildChips(tiendas),
             ),
           ],
         );
       },
     );
   }
-}
+
+  Widget _buildChips(List<TiendaInfo> tiendas) {
+    if (_cargando) {
+      return const SizedBox(
+        height: 36,
+        child: Center(child: CircularProgressIndicator(color: _kNaranja, strokeWidth: 2)),
+      );
+    }
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: tiendas
+            .map((tienda) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: ElevatedButton(
+                    onPressed: () => _mostrarTienda(tienda),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kNaranja,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      elevation: 2,
+                    ),
+                    child: Text(tienda.nombre,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  ),
+                ))
+            .toList(),
+      ),
+    );
+  }
+}
