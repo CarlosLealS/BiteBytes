@@ -179,15 +179,17 @@ class _AdminMapaPageState extends State<AdminMapaPage> {
               double offsetY;
 
               if (relacionPantalla > relacion) {
-                imgAncho = ancho;
-                imgAlto = ancho / relacion;
-                offsetX = 0;
-                offsetY = (alto - imgAlto) / 2;
-              } else {
+                // Pantalla más ancha que el mapa → ajustar por ALTURA
+                imgAlto  = alto;
                 imgAncho = alto * relacion;
-                imgAlto = alto;
-                offsetX = (ancho - imgAncho) / 2;
-                offsetY = 0;
+                offsetY  = 0;
+                offsetX  = (ancho - imgAncho) / 2;
+              } else {
+                // Pantalla más alta que el mapa → ajustar por ANCHURA
+                imgAncho = ancho;
+                imgAlto  = ancho / relacion;
+                offsetX  = 0;
+                offsetY  = (alto - imgAlto) / 2;
               }
 
               final bool esMobile = ancho < 600;

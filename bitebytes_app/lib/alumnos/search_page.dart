@@ -167,15 +167,17 @@ class _SearchPageState extends State<SearchPage> {
         final double offsetY;
 
         if (relacionPantalla > relacion) {
+          // Pantalla más ancha que el mapa → ajustar por ALTURA, centrar horizontalmente
+          imgAlto  = alto;
+          imgAncho = alto * relacion;
+          offsetY  = 0;
+          offsetX  = (ancho - imgAncho) / 2;
+        } else {
+          // Pantalla más alta que el mapa → ajustar por ANCHURA, centrar verticalmente
           imgAncho = ancho;
           imgAlto  = ancho / relacion;
           offsetX  = 0;
           offsetY  = (alto - imgAlto) / 2;
-        } else {
-          imgAncho = alto * relacion;
-          imgAlto  = alto;
-          offsetX  = (ancho - imgAncho) / 2;
-          offsetY  = 0;
         }
 
         return Stack(
