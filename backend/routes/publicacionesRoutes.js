@@ -7,6 +7,9 @@ const {
   crearPublicacion,
   editarPublicacion,
   eliminarPublicacion,
+  listarReseniasPublicacion,
+  crearReseniaPublicacion,
+  miReseniaPublicacion,
 } = require('../controllers/publicacionesController');
 
 const soloDuenio = [verificarToken, soloRoles('duenio_tienda', 'admin', 'super_admin')];
@@ -22,5 +25,10 @@ router.get('/tienda/:id/publicaciones', verificarToken, listarPublicaciones);
 router.post('/publicaciones',       ...soloDuenio, crearPublicacion);
 router.put('/publicaciones/:id',    ...soloDuenio, editarPublicacion);
 router.delete('/publicaciones/:id', ...soloDuenio, eliminarPublicacion);
+
+// Reseñas de publicaciones — requiere token
+router.get('/publicacion/:id/resenias',   verificarToken, listarReseniasPublicacion);
+router.get('/publicacion/:id/mi-resenia', verificarToken, miReseniaPublicacion);
+router.post('/publicacion/:id/resenias',  verificarToken, crearReseniaPublicacion);
 
 module.exports = router;

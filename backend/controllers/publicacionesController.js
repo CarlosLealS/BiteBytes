@@ -243,10 +243,76 @@ const obtenerPublicacionesActivas = async (req, res) => {
   }
 };
 
+// ── Reseñas de publicaciones ────────────────────────────────────────────────
+
+// GET /api/publicacion/:id/resenias
+const listarReseniasPublicacion = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT r.*, u.nombre AS usuario_nombre
+       FROM resenias_publicacion r
+       JOIN usuarios u ON u.id = r.usuario_id
+       WHERE r.publicacion_id = $1
+       ORDER BY r.creado_en DESC
+       LIMIT 20`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error listando reseñas de publicación:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// POST /api/publicacion/:id/resenias
+const crearReseniaPublicacion = async (req, res) => {
+  const { id } = req.params;
+  const { calificacion, comentario } = req.body;
+
+  if (!calificacion || calificacion < 1 || calificacion > 5) {
+    return res.status(400).json({ error: 'Calificación debe ser entre 1 y 5' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO resenias_publicacion (usuario_id, publicacion_id, calificacion, comentario)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (usuario_id, publicacion_id)
+       DO UPDATE SET calificacion = $3, comentario = $4, creado_en = NOW()
+       RETURNING *`,
+      [req.usuario.id, id, calificacion, comentario || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creando reseña de publicación:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// GET /api/publicacion/:id/mi-resenia
+const miReseniaPublicacion = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT * FROM resenias_publicacion
+       WHERE publicacion_id = $1 AND usuario_id = $2`,
+      [id, req.usuario.id]
+    );
+    res.json(result.rows[0] || null);
+  } catch (error) {
+    console.error('Error obteniendo mi reseña de publicación:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   listarPublicaciones,
   obtenerPublicacionesActivas,
   crearPublicacion,
   editarPublicacion,
   eliminarPublicacion,
+  listarReseniasPublicacion,
+  crearReseniaPublicacion,
+  miReseniaPublicacion,
 };

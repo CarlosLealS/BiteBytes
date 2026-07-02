@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:bitebytes_app/config/env.dart';
-import 'alumno_home_page.dart';
+import 'widgets/pub_card.dart';
+import 'widgets/menu_casino_card.dart';
 
 const _kAzul   = Color(0xFF0B1F5C);
 const _kDorado = Color(0xFFF5A623);
@@ -27,6 +28,7 @@ class _TiendaDetallePageState extends State<TiendaDetallePage> {
   List<Map<String, dynamic>> _productos     = [];
   List<Map<String, dynamic>> _publicaciones = [];
   List<Map<String, dynamic>> _resenias      = [];
+  List<Map<String, dynamic>> _menusCasino   = [];
   Map<String, dynamic>? _miResenia;
   Set<String> _favoritosIds = {};
 
@@ -52,6 +54,7 @@ class _TiendaDetallePageState extends State<TiendaDetallePage> {
         http.get(Uri.parse('$_base/api/tienda/$id/resenias'),              headers: headers),
         http.get(Uri.parse('$_base/api/tienda/$id/mi-resenia'),            headers: headers),
         http.get(Uri.parse('$_base/api/favoritos/ids'),                    headers: headers),
+        http.get(Uri.parse('$_base/api/menu-casino/hoy'),                  headers: headers),
       ]);
 
       if (!mounted) return;
@@ -63,6 +66,12 @@ class _TiendaDetallePageState extends State<TiendaDetallePage> {
         final miRes    = jsonDecode(res[4].body);
         _miResenia     = miRes is Map ? Map<String, dynamic>.from(miRes) : null;
         _favoritosIds  = Set<String>.from(jsonDecode(res[5].body) as List? ?? []);
+
+        final todosMenus = List<Map<String, dynamic>>.from(jsonDecode(res[6].body) as List? ?? []);
+        _menusCasino   = todosMenus
+            .where((m) => m['tienda_id']?.toString() == widget.tiendaId)
+            .toList();
+
         _cargando      = false;
       });
     } catch (e) {
@@ -122,7 +131,11 @@ class _TiendaDetallePageState extends State<TiendaDetallePage> {
       builder: (_) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.all(16),
-        child: DetallePromocionCard(promocion: pub),
+        child: DetallePromocionCard(
+        promocion: pub,
+        usuario: widget.usuario,
+        mostrarBotonTienda: false,
+      ),
       ),
     );
   }
@@ -215,6 +228,14 @@ class _TiendaDetallePageState extends State<TiendaDetallePage> {
                     Text(desc,
                         style: const TextStyle(
                             fontSize: 13, color: Color(0xFF6B7280), height: 1.5)),
+                  ],
+
+                  // ── Menú del día (casino) ────────────────────────────────
+                  if (_menusCasino.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    _seccionTitulo('Menú del día', Icons.restaurant_outlined),
+                    const SizedBox(height: 12),
+                    MenuCasinoList(menus: _menusCasino),
                   ],
 
                   // ── Publicaciones activas ───────────────────────────────

@@ -7,7 +7,8 @@ const listarMenuCasinoHoy = async (req, res) => {
       `SELECT mc.*, t.nombre AS tienda_nombre
        FROM menu_casino mc
        JOIN tiendas t ON t.id = mc.tienda_id
-       WHERE mc.fecha = CURRENT_DATE AND t.activa = true
+       WHERE mc.fecha = (NOW() AT TIME ZONE 'America/Santiago')::date
+         AND t.activa = true
        ORDER BY t.nombre, mc.nombre`
     );
 

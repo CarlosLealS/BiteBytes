@@ -119,7 +119,7 @@ const eliminarTrabajador = async (req, res) => {
 };
 
 module.exports = {
-  listarTrabajadores,
+  listarTrabajadoresTienda,
   crearTrabajador,
   eliminarTrabajador,
 };
