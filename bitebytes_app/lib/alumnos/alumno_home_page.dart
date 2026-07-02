@@ -9,6 +9,7 @@ import 'tienda_detalle_page.dart';
 import 'tienda_modal.dart';
 import 'widgets/pub_card.dart';
 import 'widgets/menu_casino_card.dart';
+import 'ofertas_page.dart';
 
 const _kAzul   = Color(0xFF0B1F5C);
 const _kDorado = Color(0xFFF5A623);
@@ -35,6 +36,9 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
   final _busquedaCtrl = TextEditingController();
   bool _buscando = false;
 
+  // Sanción activa
+  Map<String, dynamic>? _sancion;
+
   String get _token    => widget.usuario['token'] ?? '';
   Map<String, String> get _headers => {'Authorization': 'Bearer $_token'};
 
@@ -42,12 +46,27 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
   void initState() {
     super.initState();
     _cargarDatos();
+    _cargarSancion();
   }
 
   @override
   void dispose() {
     _busquedaCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _cargarSancion() async {
+    try {
+      final res = await http.get(
+        Uri.parse('${Env.apiUrl}/api/mi-sancion'),
+        headers: _headers,
+      );
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        setState(() => _sancion = data['sancionado'] == true ? data : null);
+      }
+    } catch (_) {}
   }
 
   Future<void> _cargarDatos() async {
@@ -135,6 +154,8 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
             onBuscar:     _buscarProductos,
             onLogout:     _cerrarSesion,
           ),
+          // Banner de sanción activa
+          if (_sancion != null) _BannerSancion(sancion: _sancion!),
           Expanded(
             child: _busquedaCtrl.text.isNotEmpty
                 ? _PantallaResultados(
@@ -155,6 +176,88 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
                         onIrTienda:    _irATienda,
                       )
                     : _PantallaMapa(usuario: widget.usuario),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Banner de Sanción ─────────────────────────────────────────────────────────
+
+class _BannerSancion extends StatelessWidget {
+  final Map<String, dynamic> sancion;
+  const _BannerSancion({required this.sancion});
+
+  String _tiempoRestante() {
+    final fin = sancion['fin'] != null ? DateTime.tryParse(sancion['fin']) : null;
+    if (fin == null) return 'indefinida';
+    final ahora   = DateTime.now();
+    final restante = fin.toLocal().difference(ahora);
+    if (restante.isNegative) return 'terminada';
+    final dias  = restante.inDays;
+    final horas = restante.inHours.remainder(24);
+    final mins  = restante.inMinutes.remainder(60);
+    if (dias > 0) return '$dias d ${horas}h ${mins}m';
+    if (horas > 0) return '${horas}h ${mins}m';
+    return '${mins}m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final motivo = sancion['motivo'] as String? ?? 'Infracción a las normas comunitarias';
+    final tiempo = _tiempoRestante();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7B1111), Color(0xFFB71C1C)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.gavel, color: Colors.white, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Tu cuenta tiene una sanción activa',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Motivo: $motivo',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    const Icon(Icons.timer_outlined, color: Colors.white60, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Tiempo restante: $tiempo',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -337,10 +440,12 @@ class _PantallaInicioState extends State<_PantallaInicio> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _BannerHero(
-              onVerOfertas: () => _scrollCtrl.animateTo(
-                400,
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeInOut,
+              usuario:      widget.usuario,
+              onVerOfertas: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => OfertasPage(usuario: widget.usuario),
+                ),
               ),
             ),
             Padding(
@@ -393,7 +498,8 @@ class _PantallaInicioState extends State<_PantallaInicio> {
 
 class _BannerHero extends StatelessWidget {
   final VoidCallback? onVerOfertas;
-  const _BannerHero({this.onVerOfertas});
+  final Map<String, dynamic> usuario;
+  const _BannerHero({this.onVerOfertas, required this.usuario});
 
   @override
   Widget build(BuildContext context) {

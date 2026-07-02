@@ -1,7 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../config/db');
-const { verificarToken } = require('../middleware/Authmiddleware');
+const { verificarToken, verificarSancion } = require('../middleware/Authmiddleware');
 const {
   obtenerTienda,
   listarProductosTienda,
@@ -18,6 +18,8 @@ const {
   eliminarTrabajador,
   invitarTrabajador,
   registrarTrabajador,
+  obtenerTodasLasResenias,
+  reportarResenia,
 } = require('../controllers/tiendaController');
 
 // Tienda — público
@@ -58,8 +60,10 @@ router.delete('/tienda/:tiendaId/trabajadores/:trabajadorId', verificarToken, el
 router.post('/tienda/:id/invitar-trabajador',                 verificarToken, invitarTrabajador);
 
 // Reseñas — requiere token
-router.get('/tienda/:id/mi-resenia',  verificarToken, miReseniaTienda);
-router.post('/tienda/:id/resenias',   verificarToken, crearReseniaTienda);
+router.get('/tienda/:id/mi-resenia',       verificarToken, miReseniaTienda);
+router.post('/tienda/:id/resenias',        verificarToken, verificarSancion, crearReseniaTienda);
+router.get('/tienda/:id/todas-resenias',   verificarToken, obtenerTodasLasResenias);
+router.post('/tienda/reportar-resenia',    verificarToken, reportarResenia);
 
 // Favoritos — requiere token
 router.get('/favoritos',                  verificarToken, listarFavoritos);

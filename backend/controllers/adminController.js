@@ -252,6 +252,91 @@ const enviarReseteoContrasena = async (req, res) => {
   }
 };
 
+// GET /api/admin/reportes
+const listarReportes = async (req, res) => {
+  try {
+    const query = `
+      SELECT rr.id AS reporte_id, rr.tipo_resenia, rr.resenia_id, rr.motivo, rr.estado, rr.creado_en AS reporte_creado_en,
+             rep.nombre AS reportador_nombre, rep.email AS reportador_email,
+             COALESCE(rt.comentario, r.comentario, rp.comentario, rpl.comentario) AS comentario_texto,
+             COALESCE(rt.usuario_id, r.usuario_id, rp.usuario_id, rpl.usuario_id) AS autor_id,
+             aut.nombre AS autor_nombre, aut.email AS autor_email
+      FROM reportes_resenia rr
+      JOIN usuarios rep ON rep.id = rr.reportador_id
+      LEFT JOIN resenias_tienda rt ON rr.tipo_resenia = 'tienda' AND rt.id = rr.resenia_id
+      LEFT JOIN resenias r ON rr.tipo_resenia = 'producto' AND r.id = rr.resenia_id
+      LEFT JOIN resenias_publicacion rp ON rr.tipo_resenia = 'publicacion' AND rp.id = rr.resenia_id
+      LEFT JOIN resenias_platos rpl ON rr.tipo_resenia = 'plato' AND rpl.id = rr.resenia_id
+      LEFT JOIN usuarios aut ON aut.id = COALESCE(rt.usuario_id, r.usuario_id, rp.usuario_id, rpl.usuario_id)
+      WHERE rr.estado = 'pendiente'
+      ORDER BY rr.creado_en ASC
+    `;
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error listando reportes:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// POST /api/admin/reportes/:id/resolver
+const resolverReporte = async (req, res) => {
+  const { id } = req.params;
+  const { accion, dias_sancion, motivo_sancion } = req.body;
+  if (!['sancionar', 'descartar'].includes(accion)) {
+    return res.status(400).json({ error: 'Acción inválida' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const reporteRes = await client.query('SELECT * FROM reportes_resenia WHERE id = $1', [id]);
+    if (reporteRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Reporte no encontrado' });
+    }
+    const reporte = reporteRes.rows[0];
+
+    if (accion === 'descartar') {
+      await client.query('UPDATE reportes_resenia SET estado = $1 WHERE id = $2', ['descartado', id]);
+    } else if (accion === 'sancionar') {
+      let tabla = '';
+      if (reporte.tipo_resenia === 'tienda') tabla = 'resenias_tienda';
+      else if (reporte.tipo_resenia === 'producto') tabla = 'resenias';
+      else if (reporte.tipo_resenia === 'publicacion') tabla = 'resenias_publicacion';
+      else if (reporte.tipo_resenia === 'plato') tabla = 'resenias_platos';
+
+      const reseniaEliminada = await client.query(`DELETE FROM ${tabla} WHERE id = $1 RETURNING usuario_id`, [reporte.resenia_id]);
+      
+      if (reseniaEliminada.rows.length > 0) {
+        const autor_id = reseniaEliminada.rows[0].usuario_id;
+        
+        let finSancion = null;
+        if (dias_sancion && parseInt(dias_sancion) > 0) {
+           finSancion = new Date();
+           finSancion.setDate(finSancion.getDate() + parseInt(dias_sancion));
+        }
+        
+        await client.query(
+          `INSERT INTO sanciones (usuario_id, admin_id, motivo, fin) VALUES ($1, $2, $3, $4)`,
+          [autor_id, req.usuario.id, motivo_sancion || 'Infracción de normas', finSancion]
+        );
+      }
+      
+      await client.query('UPDATE reportes_resenia SET estado = $1 WHERE id = $2', ['sancionado', id]);
+    }
+
+    await client.query('COMMIT');
+    res.json({ mensaje: 'Reporte resuelto correctamente' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error resolviendo reporte:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   listarTiendas,
   invitarDuenio,
@@ -260,4 +345,6 @@ module.exports = {
   crearTrabajador,
   eliminarTrabajador,
   enviarReseteoContrasena,
+  listarReportes,
+  resolverReporte,
 };

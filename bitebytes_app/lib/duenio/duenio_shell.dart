@@ -70,7 +70,7 @@ class _DuenioShellState extends State<DuenioShell> {
       case 'Publicaciones': return PublicacionesPage(usuario: widget.usuario);
       case 'Trabajadores':  return TrabajadoresPage(usuario: widget.usuario);
       case 'Menú Casino':   return MenuCasinoPage(usuario: widget.usuario);
-      case 'Valoraciones':  return const ValoracionesPage();
+      case 'Valoraciones':  return ValoracionesPage(usuario: widget.usuario);
       case 'Capacitación':  return const CapacitacionPage();
       default:              return DashboardPage(usuario: widget.usuario);
     }

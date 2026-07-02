@@ -1,6 +1,6 @@
 const express = require('express');
 const router  = express.Router();
-const { verificarToken, soloRoles } = require('../middleware/Authmiddleware');
+const { verificarToken, soloRoles, verificarSancion } = require('../middleware/Authmiddleware');
 const {
   listarMenuCasinoHoy,
   listarMenusCasino,
@@ -22,6 +22,6 @@ router.put('/menu-casino/:id',        ...soloDuenio, editarMenuCasino);
 router.delete('/menu-casino/:id',     ...soloDuenio, eliminarMenuCasino);
  
 // Valoraciones de platos — cualquier usuario autenticado
-router.post('/menu-casino/platos/:id/resenias', verificarToken, crearResenia);
+router.post('/menu-casino/platos/:id/resenias', verificarToken, verificarSancion, crearResenia);
  
 module.exports = router;

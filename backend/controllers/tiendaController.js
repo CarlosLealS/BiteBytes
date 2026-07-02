@@ -456,6 +456,51 @@ const registrarTrabajador = async (req, res) => {
   }
 };
 
+// GET /api/tienda/:id/todas-resenias
+const obtenerTodasLasResenias = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT 'tienda' AS tipo_resenia, r.id AS resenia_id, r.calificacion, r.comentario, r.creado_en, u.nombre AS usuario_nombre, u.id AS usuario_id
+       FROM resenias_tienda r JOIN usuarios u ON u.id = r.usuario_id WHERE r.tienda_id = $1
+       UNION ALL
+       SELECT 'producto' AS tipo_resenia, r.id AS resenia_id, r.calificacion, r.comentario, r.creado_en, u.nombre AS usuario_nombre, u.id AS usuario_id
+       FROM resenias r JOIN usuarios u ON u.id = r.usuario_id JOIN productos p ON p.id = r.producto_id WHERE p.tienda_id = $1
+       UNION ALL
+       SELECT 'publicacion' AS tipo_resenia, r.id AS resenia_id, r.calificacion, r.comentario, r.creado_en, u.nombre AS usuario_nombre, u.id AS usuario_id
+       FROM resenias_publicacion r JOIN usuarios u ON u.id = r.usuario_id JOIN publicaciones p ON p.id = r.publicacion_id WHERE p.tienda_id = $1
+       UNION ALL
+       SELECT 'plato' AS tipo_resenia, r.id AS resenia_id, r.calificacion, r.comentario, r.creado_en, u.nombre AS usuario_nombre, u.id AS usuario_id
+       FROM resenias_platos r JOIN usuarios u ON u.id = r.usuario_id JOIN menu_casino_platos mcp ON mcp.id = r.plato_id JOIN menu_casino mc ON mc.id = mcp.menu_id WHERE mc.tienda_id = $1
+       ORDER BY creado_en DESC`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo todas las reseñas:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// POST /api/tienda/reportar-resenia
+const reportarResenia = async (req, res) => {
+  const { resenia_id, tipo_resenia, motivo } = req.body;
+  if (!resenia_id || !tipo_resenia || !motivo) {
+    return res.status(400).json({ error: 'Faltan datos para el reporte' });
+  }
+  try {
+    await pool.query(
+      `INSERT INTO reportes_resenia (resenia_id, tipo_resenia, reportador_id, motivo)
+       VALUES ($1, $2, $3, $4)`,
+      [resenia_id, tipo_resenia, req.usuario.id, motivo]
+    );
+    res.status(201).json({ mensaje: 'Reporte enviado con éxito' });
+  } catch (error) {
+    console.error('Error reportando reseña:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   obtenerTienda,
   listarProductosTienda,
@@ -472,4 +517,6 @@ module.exports = {
   eliminarTrabajador,
   invitarTrabajador,
   registrarTrabajador,
+  obtenerTodasLasResenias,
+  reportarResenia,
 };

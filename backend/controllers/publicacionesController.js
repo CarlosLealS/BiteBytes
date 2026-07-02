@@ -27,7 +27,7 @@ const listarPublicaciones = async (req, res) => {
 
 // POST /api/publicaciones
 const crearPublicacion = async (req, res) => {
-  const { tienda_id, nombre, descripcion, precio_oferta, publicar_en, expira_en, activa, imagenes } = req.body;
+  const { tienda_id, nombre, descripcion, precio_oferta, publicar_en, expira_en, activa, es_oferta, imagenes } = req.body;
   // imagenes: [{ url, public_id }, ...]
 
   if (!nombre || !tienda_id) {
@@ -48,11 +48,11 @@ const crearPublicacion = async (req, res) => {
     }
 
     const result = await client.query(
-      `INSERT INTO publicaciones (tienda_id, nombre, descripcion, precio_oferta, publicar_en, expira_en, activa)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO publicaciones (tienda_id, nombre, descripcion, precio_oferta, publicar_en, expira_en, activa, es_oferta)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [tienda_id, nombre, descripcion || null, precio_oferta || null,
-       publicar_en || new Date(), expira_en || null, activa ?? true]
+       publicar_en || new Date(), expira_en || null, activa ?? true, es_oferta ?? false]
     );
 
     const publicacion = result.rows[0];
@@ -99,7 +99,7 @@ const crearPublicacion = async (req, res) => {
 // PUT /api/publicaciones/:id
 const editarPublicacion = async (req, res) => {
   const { id } = req.params;
-  const { nombre, descripcion, precio_oferta, publicar_en, expira_en, activa, imagenes } = req.body;
+  const { nombre, descripcion, precio_oferta, publicar_en, expira_en, activa, es_oferta, imagenes } = req.body;
 
   if (!nombre) {
     return res.status(400).json({ error: 'Nombre es requerido' });
@@ -123,10 +123,10 @@ const editarPublicacion = async (req, res) => {
     await client.query(
       `UPDATE publicaciones
        SET nombre = $1, descripcion = $2, precio_oferta = $3,
-           publicar_en = $4, expira_en = $5, activa = $6, actualizado_en = NOW()
-       WHERE id = $7`,
+           publicar_en = $4, expira_en = $5, activa = $6, es_oferta = $7, actualizado_en = NOW()
+       WHERE id = $8`,
       [nombre, descripcion || null, precio_oferta || null,
-       publicar_en, expira_en || null, activa ?? true, id]
+       publicar_en, expira_en || null, activa ?? true, es_oferta ?? false, id]
     );
 
     // Eliminar imágenes anteriores de Cloudinary
@@ -243,6 +243,37 @@ const obtenerPublicacionesActivas = async (req, res) => {
   }
 };
 
+// GET /api/publicaciones/ofertas
+const listarOfertas = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.*,
+              t.nombre AS tienda_nombre, t.id AS tienda_id,
+              COALESCE(
+                JSON_AGG(
+                  JSON_BUILD_OBJECT('id', pi.id, 'imagen_url', pi.imagen_url, 'orden', pi.orden)
+                  ORDER BY pi.orden
+                ) FILTER (WHERE pi.id IS NOT NULL),
+                '[]'::json
+              ) AS imagenes
+       FROM publicaciones p
+       JOIN tiendas t ON t.id = p.tienda_id
+       LEFT JOIN publicacion_imagenes pi ON pi.publicacion_id = p.id
+       WHERE p.activa = true
+         AND p.es_oferta = true
+         AND t.activa = true
+         AND p.publicar_en <= NOW()
+         AND (p.expira_en IS NULL OR p.expira_en > NOW())
+       GROUP BY p.id, t.id
+       ORDER BY p.publicar_en DESC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error listando ofertas:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 // ── Reseñas de publicaciones ────────────────────────────────────────────────
 
 // GET /api/publicacion/:id/resenias
@@ -309,6 +340,7 @@ const miReseniaPublicacion = async (req, res) => {
 module.exports = {
   listarPublicaciones,
   obtenerPublicacionesActivas,
+  listarOfertas,
   crearPublicacion,
   editarPublicacion,
   eliminarPublicacion,

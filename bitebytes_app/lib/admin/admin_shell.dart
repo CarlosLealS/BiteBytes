@@ -5,6 +5,7 @@ import 'package:bitebytes_app/config/env.dart';
 import 'package:bitebytes_app/login.dart';
 import 'admin_tiendas_page.dart';
 import 'admin_trabajadores_page.dart';
+import 'admin_reportes_page.dart';
 
 const kAzul      = Color(0xFF0B1F5C);
 const kDorado    = Color(0xFFF5A623);
@@ -24,6 +25,7 @@ class _AdminShellState extends State<AdminShell> {
     return [
       _NavItem(icono: Icons.store_outlined, label: 'Tiendas UCN', seccion: 'Administración'),
       _NavItem(icono: Icons.people_outline, label: 'Trabajadores UCN', seccion: 'Administración'),
+      _NavItem(icono: Icons.flag_outlined, label: 'Reportes', seccion: 'Moderación'),
     ];
   }
 
@@ -32,6 +34,7 @@ class _AdminShellState extends State<AdminShell> {
     switch (label) {
       case 'Tiendas UCN':      return AdminTiendasPage(usuario: widget.usuario);
       case 'Trabajadores UCN': return AdminTrabajadoresPage(usuario: widget.usuario);
+      case 'Reportes':         return AdminReportesPage(usuario: widget.usuario);
       default:                 return AdminTiendasPage(usuario: widget.usuario);
     }
   }

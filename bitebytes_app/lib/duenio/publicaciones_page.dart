@@ -188,7 +188,8 @@ class _PublicacionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final imagenes    = pub['imagenes'] as List? ?? [];
     final primeraImg  = imagenes.isNotEmpty ? imagenes[0]['imagen_url'] as String? : null;
-    final activa      = pub['activa'] as bool? ?? false;
+    final activa      = pub['activa']    as bool? ?? false;
+    final esOferta    = pub['es_oferta'] as bool? ?? false;
     final nombre      = pub['nombre'] ?? '';
     final descripcion = pub['descripcion'] ?? '';
     final precio      = pub['precio_oferta'];
@@ -221,7 +222,30 @@ class _PublicacionCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _estadoBadge(estado),
+                  Row(
+                    children: [
+                      _estadoBadge(estado),
+                      if (esOferta) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF7ED),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: _kDorado.withOpacity(0.5), width: 0.5),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.local_offer, size: 9, color: Color(0xFFF5A623)),
+                              SizedBox(width: 3),
+                              Text('Oferta', style: TextStyle(fontSize: 9, color: Color(0xFFF5A623), fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   Text(nombre,
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
@@ -352,6 +376,7 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
   DateTime? _publicarEn;
   DateTime? _expiraEn;
   bool _activa    = true;
+  bool _esOferta  = false;
   bool _guardando = false;
 
   bool get _esEdicion => widget.publicacion != null;
@@ -369,7 +394,8 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
             ? precioRaw.toInt().toString()
             : precioRaw.toString();
       }
-      _activa     = p['activa'] as bool? ?? true;
+      _activa     = p['activa']    as bool? ?? true;
+      _esOferta   = p['es_oferta'] as bool? ?? false;
       _publicarEn = p['publicar_en'] != null ? DateTime.tryParse(p['publicar_en']) : null;
       _expiraEn   = p['expira_en']   != null ? DateTime.tryParse(p['expira_en'])   : null;
 
@@ -478,6 +504,7 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
         'publicar_en':   _publicarEn?.toIso8601String(),
         'expira_en':     _expiraEn?.toIso8601String(),
         'activa':        _activa,
+        'es_oferta':     _esOferta,
         'imagenes':      todasLasImagenes, // [{url, public_id}, ...]
       });
 
@@ -574,6 +601,21 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
                 ),
                 const SizedBox(height: 16),
 
+                Row(
+                  children: [
+                    const Icon(Icons.local_offer_outlined, size: 16, color: Color(0xFFF5A623)),
+                    const SizedBox(width: 8),
+                    const Text('Marcar como oferta',
+                        style: TextStyle(fontSize: 13, color: Color(0xFF374151))),
+                    const Spacer(),
+                    Switch(
+                      value: _esOferta,
+                      onChanged: (v) => setState(() => _esOferta = v),
+                      activeColor: const Color(0xFFF5A623),
+                      activeTrackColor: const Color(0xFFF5A623).withOpacity(0.3),
+                    ),
+                  ],
+                ),
                 Row(
                   children: [
                     const Text('Publicar activa',

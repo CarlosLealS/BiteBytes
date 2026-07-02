@@ -86,8 +86,36 @@ const buscarProductos = async (req, res) => {
   }
 };
 
+// GET /api/mi-sancion
+// Devuelve la sanción activa del usuario autenticado, si existe
+const obtenerMiSancion = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT motivo, inicio, fin
+       FROM sanciones
+       WHERE usuario_id = $1 AND activa = true AND (fin IS NULL OR fin > NOW())
+       ORDER BY fin DESC LIMIT 1`,
+      [req.usuario.id]
+    );
+    if (result.rows.length === 0) {
+      return res.json({ sancionado: false });
+    }
+    const s = result.rows[0];
+    res.json({
+      sancionado: true,
+      motivo:     s.motivo,
+      inicio:     s.inicio,
+      fin:        s.fin,
+    });
+  } catch (error) {
+    console.error('Error obteniendo sanción:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   listarTiendas,
   listarMenuCasinoHoy,
   buscarProductos,
+  obtenerMiSancion,
 };

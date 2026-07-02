@@ -9,6 +9,8 @@ const {
   crearTrabajador,
   eliminarTrabajador,
   enviarReseteoContrasena,
+  listarReportes,
+  resolverReporte,
 } = require('../controllers/adminController');
 
 // Solo administradores o super admins
@@ -26,5 +28,9 @@ router.delete('/trabajadores/:id', ...soloAdmin, eliminarTrabajador);
 
 // Reseteo de contraseña (admin envía a cualquier usuario)
 router.post('/usuarios/:id/resetear-contrasena', ...soloAdmin, enviarReseteoContrasena);
+
+// Reportes y sanciones
+router.get('/reportes',                 ...soloAdmin, listarReportes);
+router.post('/reportes/:id/resolver',   ...soloAdmin, resolverReporte);
 
 module.exports = router;
