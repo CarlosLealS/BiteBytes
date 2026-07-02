@@ -10,7 +10,7 @@ const {
   crearResenia,
 } = require('../controllers/menuCasinoController');
  
-const soloDuenio = [verificarToken, soloRoles('duenio_tienda', 'admin', 'super_admin')];
+const soloDuenio = [verificarToken, soloRoles('duenio_tienda', 'trabajador_tienda', 'admin', 'super_admin')];
  
 // Público — para alumnos
 router.get('/menu-casino/hoy', listarMenuCasinoHoy);

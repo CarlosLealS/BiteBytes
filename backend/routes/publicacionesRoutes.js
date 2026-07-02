@@ -13,7 +13,7 @@ const {
   miReseniaPublicacion,
 } = require('../controllers/publicacionesController');
 
-const soloDuenio = [verificarToken, soloRoles('duenio_tienda', 'admin', 'super_admin')];
+const soloDuenio = [verificarToken, soloRoles('duenio_tienda', 'trabajador_tienda', 'admin', 'super_admin')];
 
 // Publicaciones activas para alumnos — pública, sin token requerido
 // IMPORTANTE: debe ir ANTES de cualquier ruta con /:id para evitar conflictos

@@ -10,7 +10,7 @@ const {
   eliminarProducto,
 } = require('../controllers/productosController');
 
-const soloDuenio = [verificarToken, soloRoles('duenio_tienda', 'admin', 'super_admin')];
+const soloDuenio = [verificarToken, soloRoles('duenio_tienda', 'trabajador_tienda', 'admin', 'super_admin')];
 
 // Categorías (cualquier usuario autenticado puede verlas)
 router.get('/categorias', verificarToken, listarCategorias);
