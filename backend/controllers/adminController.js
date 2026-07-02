@@ -337,6 +337,31 @@ const resolverReporte = async (req, res) => {
   }
 };
 
+// PATCH /api/admin/tiendas/:id/ubicacion
+const actualizarUbicacionTienda = async (req, res) => {
+  const { id } = req.params;
+  const { latitud, longitud } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE tiendas 
+       SET latitud = $1, longitud = $2, actualizado_en = NOW() 
+       WHERE id = $3 
+       RETURNING id`,
+      [latitud, longitud, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Tienda no encontrada' });
+    }
+
+    res.json({ mensaje: 'Ubicación de tienda actualizada correctamente' });
+  } catch (error) {
+    console.error('Error actualizando ubicación de tienda:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   listarTiendas,
   invitarDuenio,
@@ -347,4 +372,5 @@ module.exports = {
   enviarReseteoContrasena,
   listarReportes,
   resolverReporte,
+  actualizarUbicacionTienda,
 };

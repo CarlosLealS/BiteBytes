@@ -47,7 +47,8 @@ class TiendaInfo {
 class DetallesTiendaModal extends StatefulWidget {
   final TiendaInfo tienda;
   final Map<String, dynamic>? usuario;
-  const DetallesTiendaModal({super.key, required this.tienda, this.usuario});
+  final ValueChanged<String>? onIrTienda;
+  const DetallesTiendaModal({super.key, required this.tienda, this.usuario, this.onIrTienda});
 
   @override
   State<DetallesTiendaModal> createState() => _DetallesTiendaModalState();
@@ -168,17 +169,43 @@ class _DetallesTiendaModalState extends State<DetallesTiendaModal> {
                         )),
 
               const SizedBox(height: 28),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _kNaranja,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Cerrar',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  if (widget.onIrTienda != null) ...[
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          widget.onIrTienda!(widget.tienda.id);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _kAzul,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Ir a la tienda',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                  ],
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _kNaranja,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Cerrar',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
             ],

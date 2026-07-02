@@ -14,7 +14,8 @@ const double _mapAlto  = 900.0;
 
 class SearchPage extends StatefulWidget {
   final Map<String, dynamic>? usuario;
-  const SearchPage({super.key, this.usuario});
+  final ValueChanged<String>? onIrTienda;
+  const SearchPage({super.key, this.usuario, this.onIrTienda});
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -80,7 +81,7 @@ class _SearchPageState extends State<SearchPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => DetallesTiendaModal(tienda: tienda, usuario: widget.usuario),
+      builder: (_) => DetallesTiendaModal(tienda: tienda, usuario: widget.usuario, onIrTienda: widget.onIrTienda),
     );
   }
 
@@ -92,6 +93,7 @@ class _SearchPageState extends State<SearchPage> {
       fit: StackFit.expand,
       children: [
         // Mapa
+        Container(color: const Color(0xFFE5E7EB)),
         Image.asset('assets/MapaUCN.png', fit: BoxFit.cover),
 
         // Pines sobre el mapa
@@ -109,15 +111,15 @@ class _SearchPageState extends State<SearchPage> {
             final double offsetY;
 
             if (relacionPantalla > relacion) {
-              imgAlto  = alto;
-              imgAncho = alto * relacion;
-              offsetX  = (ancho - imgAncho) / 2;
-              offsetY  = 0;
-            } else {
               imgAncho = ancho;
-              imgAlto  = ancho / relacion;
-              offsetX  = 0;
-              offsetY  = (alto - imgAlto) / 2;
+              imgAlto = ancho / relacion;
+              offsetX = 0;
+              offsetY = (alto - imgAlto) / 2;
+            } else {
+              imgAncho = alto * relacion;
+              imgAlto = alto;
+              offsetX = (ancho - imgAncho) / 2;
+              offsetY = 0;
             }
 
             return Stack(

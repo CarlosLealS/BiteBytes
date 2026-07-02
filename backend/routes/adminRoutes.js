@@ -11,6 +11,7 @@ const {
   enviarReseteoContrasena,
   listarReportes,
   resolverReporte,
+  actualizarUbicacionTienda,
 } = require('../controllers/adminController');
 
 // Solo administradores o super admins
@@ -20,6 +21,7 @@ const soloAdmin = [verificarToken, soloRoles('admin', 'super_admin')];
 router.get('/tiendas',        ...soloAdmin, listarTiendas);
 router.post('/tiendas',       ...soloAdmin, invitarDuenio);
 router.delete('/tiendas/:id', ...soloAdmin, eliminarTienda);
+router.patch('/tiendas/:id/ubicacion', ...soloAdmin, actualizarUbicacionTienda);
 
 // Trabajadores
 router.get('/trabajadores',        ...soloAdmin, listarTrabajadores);

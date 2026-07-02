@@ -379,6 +379,9 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
   bool _esOferta  = false;
   bool _guardando = false;
 
+  List<Map<String, dynamic>> _productosTienda = [];
+  List<String> _productosIdsSeleccionados = [];
+
   bool get _esEdicion => widget.publicacion != null;
 
   @override
@@ -404,8 +407,30 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
         'url':       i['imagen_url']?.toString()        ?? '',
         'public_id': i['imagen_public_id']?.toString() ?? '',
       }).toList();
+      
+      final pIds = p['productos_ids'] as List? ?? [];
+      _productosIdsSeleccionados = pIds.map((id) => id.toString()).toList();
     } else {
       _publicarEn = DateTime.now();
+    }
+    _cargarProductos();
+  }
+
+  Future<void> _cargarProductos() async {
+    try {
+      final token    = widget.usuario['token'] ?? '';
+      final tiendaId = widget.usuario['tienda_id'] ?? '';
+      final res = await http.get(
+        Uri.parse('$_kBase/api/tienda/$tiendaId/productos-disponibles'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (mounted && res.statusCode == 200) {
+        setState(() {
+          _productosTienda = List<Map<String, dynamic>>.from(jsonDecode(res.body));
+        });
+      }
+    } catch (e) {
+      debugPrint('Error cargando productos: $e');
     }
   }
 
@@ -506,6 +531,7 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
         'activa':        _activa,
         'es_oferta':     _esOferta,
         'imagenes':      todasLasImagenes, // [{url, public_id}, ...]
+        'productosIds':  _esOferta ? _productosIdsSeleccionados : [],
       });
 
       final headers = {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'};
@@ -616,6 +642,38 @@ class _FormularioPublicacionState extends State<_FormularioPublicacion> {
                     ),
                   ],
                 ),
+                
+                if (_esOferta && _productosTienda.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text('Productos en oferta (opcional)',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF374151))),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _productosTienda.map((p) {
+                      final id = p['id'].toString();
+                      final seleccionado = _productosIdsSeleccionados.contains(id);
+                      return FilterChip(
+                        label: Text(p['nombre'], style: TextStyle(fontSize: 12, color: seleccionado ? _kAzul : Colors.black87)),
+                        selected: seleccionado,
+                        selectedColor: _kDorado.withOpacity(0.3),
+                        checkmarkColor: _kAzul,
+                        onSelected: (bool selected) {
+                          setState(() {
+                            if (selected) {
+                              _productosIdsSeleccionados.add(id);
+                            } else {
+                              _productosIdsSeleccionados.remove(id);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+                const SizedBox(height: 8),
+
                 Row(
                   children: [
                     const Text('Publicar activa',

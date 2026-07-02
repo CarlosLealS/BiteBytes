@@ -10,6 +10,7 @@ import 'tienda_modal.dart';
 import 'widgets/pub_card.dart';
 import 'widgets/menu_casino_card.dart';
 import 'ofertas_page.dart';
+import 'notificaciones_page.dart';
 
 const _kAzul   = Color(0xFF0B1F5C);
 const _kDorado = Color(0xFFF5A623);
@@ -175,7 +176,7 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
                         onRefresh:     _cargarDatos,
                         onIrTienda:    _irATienda,
                       )
-                    : _PantallaMapa(usuario: widget.usuario),
+                    : _PantallaMapa(usuario: widget.usuario, onIrTienda: _irATienda),
           ),
         ],
       ),
@@ -344,6 +345,23 @@ class _Navbar extends StatelessWidget {
                     ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(width: 14),
+
+          // Notificaciones
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => NotificacionesPage(usuario: usuario)),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.notifications_none, color: Colors.white, size: 20),
             ),
           ),
           const SizedBox(width: 14),
@@ -783,10 +801,11 @@ class _PantallaResultados extends StatelessWidget {
 
 class _PantallaMapa extends StatelessWidget {
   final Map<String, dynamic> usuario;
-  const _PantallaMapa({required this.usuario});
+  final ValueChanged<String>? onIrTienda;
+  const _PantallaMapa({required this.usuario, this.onIrTienda});
 
   @override
-  Widget build(BuildContext context) => SearchPage(usuario: usuario);
+  Widget build(BuildContext context) => SearchPage(usuario: usuario, onIrTienda: onIrTienda);
 }
 
 // ─── Modal perfil ──────────────────────────────────────────────────────────────

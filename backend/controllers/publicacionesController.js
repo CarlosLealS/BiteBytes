@@ -27,8 +27,9 @@ const listarPublicaciones = async (req, res) => {
 
 // POST /api/publicaciones
 const crearPublicacion = async (req, res) => {
-  const { tienda_id, nombre, descripcion, precio_oferta, publicar_en, expira_en, activa, es_oferta, imagenes } = req.body;
+  const { tienda_id, nombre, descripcion, precio_oferta, publicar_en, expira_en, activa, es_oferta, imagenes, productosIds } = req.body;
   // imagenes: [{ url, public_id }, ...]
+  // productosIds: [uuid1, uuid2, ...]
 
   if (!nombre || !tienda_id) {
     return res.status(400).json({ error: 'Nombre y tienda_id son requeridos' });
@@ -71,18 +72,59 @@ const crearPublicacion = async (req, res) => {
       }
     }
 
+    // Insertar productos asociados
+    if (productosIds && Array.isArray(productosIds) && productosIds.length > 0) {
+      for (const prodId of productosIds) {
+        await client.query(
+          `INSERT INTO publicacion_productos (publicacion_id, producto_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [publicacion.id, prodId]
+        );
+      }
+
+      // Lógica de notificaciones
+      if (es_oferta) {
+        const favs = await client.query(
+          `SELECT DISTINCT usuario_id, p.nombre AS producto_nombre
+           FROM favoritos f
+           JOIN productos p ON p.id = f.producto_id
+           WHERE f.producto_id = ANY($1::uuid[]) AND f.usuario_id != $2`,
+          [productosIds, req.usuario.id]
+        );
+
+        if (favs.rows.length > 0) {
+          const tiendaData = await client.query('SELECT nombre FROM tiendas WHERE id = $1', [tienda_id]);
+          const nombreTienda = tiendaData.rows[0]?.nombre || 'una tienda';
+
+          for (const fav of favs.rows) {
+            const titulo = '¡Oferta en tu favorito!';
+            const mensaje = `El producto "${fav.producto_nombre}" que marcaste como favorito está en oferta en ${nombreTienda}.`;
+            await client.query(
+              `INSERT INTO notificaciones (usuario_id, titulo, mensaje, tipo, referencia_id)
+               VALUES ($1, $2, $3, 'oferta', $4)`,
+              [fav.usuario_id, titulo, mensaje, publicacion.id]
+            );
+          }
+        }
+      }
+    }
+
     await client.query('COMMIT');
 
     const completa = await pool.query(
       `SELECT p.*,
-              JSON_AGG(
-                JSON_BUILD_OBJECT('id', pi.id, 'imagen_url', pi.imagen_url, 'orden', pi.orden)
-                ORDER BY pi.orden
-              ) FILTER (WHERE pi.id IS NOT NULL) AS imagenes
+              (
+                SELECT JSON_AGG(
+                  JSON_BUILD_OBJECT('id', pi.id, 'imagen_url', pi.imagen_url, 'orden', pi.orden)
+                  ORDER BY pi.orden
+                )
+                FROM publicacion_imagenes pi WHERE pi.publicacion_id = p.id
+              ) AS imagenes,
+              (
+                SELECT COALESCE(JSON_AGG(pp.producto_id), '[]'::json)
+                FROM publicacion_productos pp WHERE pp.publicacion_id = p.id
+              ) AS productos_ids
        FROM publicaciones p
-       LEFT JOIN publicacion_imagenes pi ON pi.publicacion_id = p.id
-       WHERE p.id = $1
-       GROUP BY p.id`,
+       WHERE p.id = $1`,
       [publicacion.id]
     );
 
@@ -99,7 +141,7 @@ const crearPublicacion = async (req, res) => {
 // PUT /api/publicaciones/:id
 const editarPublicacion = async (req, res) => {
   const { id } = req.params;
-  const { nombre, descripcion, precio_oferta, publicar_en, expira_en, activa, es_oferta, imagenes } = req.body;
+  const { nombre, descripcion, precio_oferta, publicar_en, expira_en, activa, es_oferta, imagenes, productosIds } = req.body;
 
   if (!nombre) {
     return res.status(400).json({ error: 'Nombre es requerido' });
@@ -155,18 +197,70 @@ const editarPublicacion = async (req, res) => {
       }
     }
 
+    // Actualizar productos asociados
+    await client.query('DELETE FROM publicacion_productos WHERE publicacion_id = $1', [id]);
+    if (productosIds && Array.isArray(productosIds) && productosIds.length > 0) {
+      for (const prodId of productosIds) {
+        await client.query(
+          `INSERT INTO publicacion_productos (publicacion_id, producto_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [id, prodId]
+        );
+      }
+
+      if (es_oferta) {
+        const favs = await client.query(
+          `SELECT DISTINCT usuario_id, p.nombre AS producto_nombre
+           FROM favoritos f
+           JOIN productos p ON p.id = f.producto_id
+           WHERE f.producto_id = ANY($1::uuid[]) AND f.usuario_id != $2`,
+          [productosIds, req.usuario.id]
+        );
+
+        if (favs.rows.length > 0) {
+          const pubData = await client.query('SELECT tienda_id FROM publicaciones WHERE id = $1', [id]);
+          const tId = pubData.rows[0].tienda_id;
+          const tiendaData = await client.query('SELECT nombre FROM tiendas WHERE id = $1', [tId]);
+          const nombreTienda = tiendaData.rows[0]?.nombre || 'una tienda';
+
+          for (const fav of favs.rows) {
+            const notifExiste = await client.query(
+              `SELECT id FROM notificaciones 
+               WHERE usuario_id = $1 AND referencia_id = $2 AND tipo = 'oferta' 
+               AND creado_en > NOW() - INTERVAL '1 day'`,
+              [fav.usuario_id, id]
+            );
+
+            if (notifExiste.rows.length === 0) {
+              const titulo = '¡Oferta en tu favorito!';
+              const mensaje = `El producto "${fav.producto_nombre}" que marcaste como favorito está en oferta en ${nombreTienda}.`;
+              await client.query(
+                `INSERT INTO notificaciones (usuario_id, titulo, mensaje, tipo, referencia_id)
+                 VALUES ($1, $2, $3, 'oferta', $4)`,
+                [fav.usuario_id, titulo, mensaje, id]
+              );
+            }
+          }
+        }
+      }
+    }
+
     await client.query('COMMIT');
 
     const completa = await pool.query(
       `SELECT p.*,
-              JSON_AGG(
-                JSON_BUILD_OBJECT('id', pi.id, 'imagen_url', pi.imagen_url, 'orden', pi.orden)
-                ORDER BY pi.orden
-              ) FILTER (WHERE pi.id IS NOT NULL) AS imagenes
+              (
+                SELECT JSON_AGG(
+                  JSON_BUILD_OBJECT('id', pi.id, 'imagen_url', pi.imagen_url, 'orden', pi.orden)
+                  ORDER BY pi.orden
+                )
+                FROM publicacion_imagenes pi WHERE pi.publicacion_id = p.id
+              ) AS imagenes,
+              (
+                SELECT COALESCE(JSON_AGG(pp.producto_id), '[]'::json)
+                FROM publicacion_productos pp WHERE pp.publicacion_id = p.id
+              ) AS productos_ids
        FROM publicaciones p
-       LEFT JOIN publicacion_imagenes pi ON pi.publicacion_id = p.id
-       WHERE p.id = $1
-       GROUP BY p.id`,
+       WHERE p.id = $1`,
       [id]
     );
 
@@ -206,6 +300,8 @@ const eliminarPublicacion = async (req, res) => {
     }
 
     await pool.query('DELETE FROM publicaciones WHERE id = $1', [id]);
+    // Las tablas publicacion_productos y notificaciones asumen cascada, si no, habría que borrarlas
+    // Pero como notificaciones no tiene FK en referencia_id o es_cascade, no rompe.
     res.json({ mensaje: 'Publicación eliminada correctamente' });
   } catch (error) {
     console.error('Error eliminando publicación:', error.message);
