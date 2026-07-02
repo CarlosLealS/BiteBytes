@@ -73,7 +73,7 @@ const buscarProductos = async (req, res) => {
        LEFT JOIN resenias r ON r.producto_id = p.id
        WHERE p.disponible = true
          AND t.activa = true
-         AND LOWER(p.nombre) LIKE LOWER($1)
+         AND (LOWER(p.nombre) LIKE LOWER($1) OR LOWER(c.nombre) LIKE LOWER($1))
        GROUP BY p.id, t.nombre, t.id, c.nombre
        ORDER BY p.nombre
        LIMIT 50`,

@@ -32,6 +32,7 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
   List<Map<String, dynamic>> _menusCasino        = [];
   List<Map<String, dynamic>> _publicaciones      = [];
   List<Map<String, dynamic>> _tiendas            = [];
+  List<Map<String, dynamic>> _categorias         = [];
   List<Map<String, dynamic>> _resultadosBusqueda = [];
 
   final _busquedaCtrl = TextEditingController();
@@ -78,12 +79,14 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
         http.get(Uri.parse('$base/api/menu-casino/hoy'),       headers: _headers),
         http.get(Uri.parse('$base/api/publicaciones/activas'), headers: _headers),
         http.get(Uri.parse('$base/api/tiendas'),               headers: _headers),
+        http.get(Uri.parse('$base/api/categorias'),            headers: _headers),
       ]);
       if (!mounted) return;
       setState(() {
         _menusCasino   = _parseList(res[0].body);
         _publicaciones = _parseList(res[1].body);
         _tiendas       = _parseList(res[2].body);
+        _categorias    = _parseList(res[3].body);
         _cargando      = false;
       });
     } catch (_) {
@@ -155,6 +158,57 @@ class _AlumnoHomePageState extends State<AlumnoHomePage> {
             onBuscar:     _buscarProductos,
             onLogout:     _cerrarSesion,
           ),
+          if (_categorias.isNotEmpty)
+            Container(
+              height: 46,
+              width: double.infinity,
+              color: _kAzul,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                itemCount: _categorias.length,
+                itemBuilder: (context, index) {
+                  final cat = _categorias[index];
+                  final nombreCat = cat['nombre'] as String? ?? '';
+                  final isSelected = _busquedaCtrl.text.trim().toLowerCase() == nombreCat.toLowerCase();
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        if (!isSelected) {
+                          _busquedaCtrl.text = nombreCat;
+                          _buscarProductos(nombreCat);
+                        } else {
+                          _busquedaCtrl.clear();
+                          _buscarProductos('');
+                        }
+                        setState(() {});
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isSelected ? _kDorado : Colors.white.withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected ? _kDorado : Colors.white.withOpacity(0.20),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          nombreCat,
+                          style: TextStyle(
+                            color: isSelected ? _kAzul : Colors.white,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           // Banner de sanción activa
           if (_sancion != null) _BannerSancion(sancion: _sancion!),
           Expanded(
