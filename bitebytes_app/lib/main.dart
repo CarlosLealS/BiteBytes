@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'login.dart';
+import 'home_page.dart';
 import 'registro_trabajador_page.dart';
 import 'registro_duenio_page.dart';
 import 'resetear_contrasena_page.dart';
@@ -36,7 +37,7 @@ class MyApp extends StatelessWidget {
     } else if (esResetContrasena) {
       paginaInicial = ResetearContrasenaPage(token: token!);
     } else {
-      paginaInicial = const LoginPage();
+      paginaInicial = const HomePage();
     }
 
     return MaterialApp(
