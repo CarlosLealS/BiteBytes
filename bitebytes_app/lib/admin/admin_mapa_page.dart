@@ -190,23 +190,53 @@ class _AdminMapaPageState extends State<AdminMapaPage> {
                 offsetY = 0;
               }
 
-              return GestureDetector(
+              final bool esMobile = ancho < 600;
+
+              Widget contenidoMapa = Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Imagen con el mismo tamaño y offset que los pines
+                  Positioned(
+                    left: offsetX,
+                    top: offsetY,
+                    width: imgAncho,
+                    height: imgAlto,
+                    child: Image.asset('assets/MapaUCN.png', fit: BoxFit.fill),
+                  ),
+
+                  // Pin de la tienda seleccionada
+                  if (_pixelX != null && _pixelY != null)
+                    Positioned(
+                      left: offsetX + (_pixelX! / _mapAncho) * imgAncho - 20,
+                      top: offsetY + (_pixelY! / _mapAlto) * imgAlto - 40,
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Colors.red,
+                        size: 40,
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                      ),
+                    ),
+                ],
+              );
+
+              Widget mapaInteractivo = GestureDetector(
                 onTapDown: (details) {
                   if (_tiendaSeleccionada == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Por favor selecciona una tienda primero'), duration: Duration(seconds: 2)),
+                      const SnackBar(
+                        content: Text('Por favor selecciona una tienda primero'),
+                        duration: Duration(seconds: 2),
+                      ),
                     );
                     return;
                   }
-                  
+
                   final localX = details.localPosition.dx;
                   final localY = details.localPosition.dy;
 
-                  // Ajustar por offset de la imagen
                   final xEnImg = localX - offsetX;
                   final yEnImg = localY - offsetY;
 
-                  // Evitar clics fuera de la imagen
                   if (xEnImg >= 0 && xEnImg <= imgAncho && yEnImg >= 0 && yEnImg <= imgAlto) {
                     setState(() {
                       _pixelX = (xEnImg / imgAncho) * _mapAncho;
@@ -214,25 +244,27 @@ class _AdminMapaPageState extends State<AdminMapaPage> {
                     });
                   }
                 },
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Container(color: Colors.grey[200]),
-                    Image.asset('assets/MapaUCN.png', fit: BoxFit.cover),
-                    
-                    if (_pixelX != null && _pixelY != null)
-                      Positioned(
-                        left: offsetX + (_pixelX! / _mapAncho) * imgAncho - 20,
-                        top: offsetY + (_pixelY! / _mapAlto) * imgAlto - 40,
-                        child: const Icon(
-                          Icons.location_on,
-                          color: Colors.red,
-                          size: 40,
-                          shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
-                        ),
-                      ),
-                  ],
+                child: SizedBox(
+                  width: ancho,
+                  height: alto,
+                  child: contenidoMapa,
                 ),
+              );
+
+              return Stack(
+                children: [
+                  Container(color: Colors.grey[200]),
+                  if (esMobile)
+                    InteractiveViewer(
+                      boundaryMargin: const EdgeInsets.all(0),
+                      minScale: 0.8,
+                      maxScale: 4.0,
+                      constrained: true,
+                      child: mapaInteractivo,
+                    )
+                  else
+                    mapaInteractivo,
+                ],
               );
             },
           ),
