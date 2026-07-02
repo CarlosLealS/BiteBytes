@@ -45,7 +45,9 @@ const crearProducto = async (req, res) => {
 
   try {
     const tienda = await pool.query(
-      'SELECT id FROM tiendas WHERE id = $1 AND duenio_id = $2',
+      `SELECT t.id FROM tiendas t 
+       LEFT JOIN trabajadores_tienda tt ON tt.tienda_id = t.id AND tt.usuario_id = $2 
+       WHERE t.id = $1 AND (t.duenio_id = $2 OR tt.usuario_id IS NOT NULL)`,
       [tienda_id, req.usuario.id]
     );
     if (tienda.rows.length === 0) {
@@ -78,7 +80,8 @@ const editarProducto = async (req, res) => {
     const check = await pool.query(
       `SELECT p.id, p.imagen_public_id FROM productos p
        JOIN tiendas t ON t.id = p.tienda_id
-       WHERE p.id = $1 AND t.duenio_id = $2`,
+       LEFT JOIN trabajadores_tienda tt ON tt.tienda_id = t.id AND tt.usuario_id = $2
+       WHERE p.id = $1 AND (t.duenio_id = $2 OR tt.usuario_id IS NOT NULL)`,
       [id, req.usuario.id]
     );
     if (check.rows.length === 0) {
@@ -119,7 +122,8 @@ const toggleDisponible = async (req, res) => {
     const check = await pool.query(
       `SELECT p.id FROM productos p
        JOIN tiendas t ON t.id = p.tienda_id
-       WHERE p.id = $1 AND t.duenio_id = $2`,
+       LEFT JOIN trabajadores_tienda tt ON tt.tienda_id = t.id AND tt.usuario_id = $2
+       WHERE p.id = $1 AND (t.duenio_id = $2 OR tt.usuario_id IS NOT NULL)`,
       [id, req.usuario.id]
     );
     if (check.rows.length === 0) {
@@ -145,7 +149,8 @@ const eliminarProducto = async (req, res) => {
     const check = await pool.query(
       `SELECT p.id, p.imagen_public_id FROM productos p
        JOIN tiendas t ON t.id = p.tienda_id
-       WHERE p.id = $1 AND t.duenio_id = $2`,
+       LEFT JOIN trabajadores_tienda tt ON tt.tienda_id = t.id AND tt.usuario_id = $2
+       WHERE p.id = $1 AND (t.duenio_id = $2 OR tt.usuario_id IS NOT NULL)`,
       [id, req.usuario.id]
     );
     if (check.rows.length === 0) {

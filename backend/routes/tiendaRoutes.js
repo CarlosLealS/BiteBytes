@@ -20,6 +20,7 @@ const {
   registrarTrabajador,
   obtenerTodasLasResenias,
   reportarResenia,
+  actualizarTienda,
 } = require('../controllers/tiendaController');
 
 // Tienda — público
@@ -54,6 +55,7 @@ router.get('/verificar-invitacion', async (req, res) => {
 router.post('/registro-trabajador', registrarTrabajador);
 
 // Trabajadores — requiere token
+router.put('/tienda/:id',                                     verificarToken, actualizarTienda);
 router.get('/tienda/:id/trabajadores',                        verificarToken, listarTrabajadoresTienda);
 router.post('/tienda/:id/trabajadores',                       verificarToken, crearTrabajador);
 router.delete('/tienda/:tiendaId/trabajadores/:trabajadorId', verificarToken, eliminarTrabajador);

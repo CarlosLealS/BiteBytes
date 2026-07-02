@@ -45,6 +45,7 @@ dependencies:
   fl_chart: ^1.2.0
   http_parser: ^4.1.2
   image_picker: ^1.2.2
+  image_cropper: ^8.0.0
 
 dev_dependencies:
   flutter_test:

@@ -501,6 +501,42 @@ const reportarResenia = async (req, res) => {
   }
 };
 
+// PUT /api/tienda/:id
+const actualizarTienda = async (req, res) => {
+  const { id } = req.params;
+  const { nombre, descripcion, horario, imagen_url } = req.body;
+
+  if (!nombre) {
+    return res.status(400).json({ error: 'El nombre es requerido' });
+  }
+
+  try {
+    const check = await pool.query(
+      `SELECT t.id FROM tiendas t 
+       LEFT JOIN trabajadores_tienda tt ON tt.tienda_id = t.id AND tt.usuario_id = $2 
+       WHERE t.id = $1 AND (t.duenio_id = $2 OR tt.usuario_id IS NOT NULL)`,
+      [id, req.usuario.id]
+    );
+    
+    if (check.rows.length === 0) {
+      return res.status(403).json({ error: 'No tienes permiso para editar esta tienda' });
+    }
+
+    const result = await pool.query(
+      `UPDATE tiendas 
+       SET nombre = $1, descripcion = $2, horario = $3, imagen_url = $4
+       WHERE id = $5
+       RETURNING *`,
+      [nombre, descripcion || null, horario || null, imagen_url || null, id]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando tienda:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   obtenerTienda,
   listarProductosTienda,
@@ -519,4 +555,5 @@ module.exports = {
   registrarTrabajador,
   obtenerTodasLasResenias,
   reportarResenia,
+  actualizarTienda,
 };

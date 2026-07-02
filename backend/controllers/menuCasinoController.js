@@ -41,7 +41,8 @@ const listarMenusCasino = async (req, res) => {
     const tienda = await pool.query(
       `SELECT t.id FROM tiendas t
        JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
-       WHERE t.id = $1 AND t.duenio_id = $2 AND tt.es_casino = true`,
+       LEFT JOIN trabajadores_tienda tra ON tra.tienda_id = t.id AND tra.usuario_id = $2
+       WHERE t.id = $1 AND (t.duenio_id = $2 OR tra.usuario_id IS NOT NULL) AND tt.es_casino = true`,
       [id, req.usuario.id]
     );
     if (tienda.rows.length === 0) {
@@ -90,7 +91,8 @@ const crearMenuCasino = async (req, res) => {
     const tienda = await client.query(
       `SELECT t.id FROM tiendas t
        JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
-       WHERE t.id = $1 AND t.duenio_id = $2 AND tt.es_casino = true`,
+       LEFT JOIN trabajadores_tienda tra ON tra.tienda_id = t.id AND tra.usuario_id = $2
+       WHERE t.id = $1 AND (t.duenio_id = $2 OR tra.usuario_id IS NOT NULL) AND tt.es_casino = true`,
       [tienda_id, req.usuario.id]
     );
     if (tienda.rows.length === 0) {
@@ -149,7 +151,8 @@ const editarMenuCasino = async (req, res) => {
       `SELECT mc.id FROM menu_casino mc
        JOIN tiendas t ON t.id = mc.tienda_id
        JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
-       WHERE mc.id = $1 AND t.duenio_id = $2 AND tt.es_casino = true`,
+       LEFT JOIN trabajadores_tienda tra ON tra.tienda_id = t.id AND tra.usuario_id = $2
+       WHERE mc.id = $1 AND (t.duenio_id = $2 OR tra.usuario_id IS NOT NULL) AND tt.es_casino = true`,
       [id, req.usuario.id]
     );
     if (check.rows.length === 0) {
@@ -199,7 +202,8 @@ const eliminarMenuCasino = async (req, res) => {
       `SELECT mc.id FROM menu_casino mc
        JOIN tiendas t ON t.id = mc.tienda_id
        JOIN tipo_tienda tt ON tt.id = t.tipo_tienda_id
-       WHERE mc.id = $1 AND t.duenio_id = $2 AND tt.es_casino = true`,
+       LEFT JOIN trabajadores_tienda tra ON tra.tienda_id = t.id AND tra.usuario_id = $2
+       WHERE mc.id = $1 AND (t.duenio_id = $2 OR tra.usuario_id IS NOT NULL) AND tt.es_casino = true`,
       [id, req.usuario.id]
     );
     if (check.rows.length === 0) {

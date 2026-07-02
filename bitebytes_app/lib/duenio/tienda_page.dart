@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:bitebytes_app/config/env.dart';
 
 const _kAzul   = Color(0xFF0B1F5C);
@@ -656,7 +657,27 @@ class _FormularioTiendaState extends State<_FormularioTienda> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
-    final bytes = await picked.readAsBytes();
+
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      aspectRatio: const CropAspectRatio(ratioX: 16, ratioY: 9),
+      uiSettings: [
+        AndroidUiSettings(
+            toolbarTitle: 'Recortar portada',
+            toolbarColor: _kAzul,
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.ratio16x9,
+            lockAspectRatio: false),
+        IOSUiSettings(
+          title: 'Recortar portada',
+          aspectRatioLockEnabled: false,
+        ),
+      ],
+    );
+
+    if (croppedFile == null) return;
+
+    final bytes = await croppedFile.readAsBytes();
     setState(() {
       _imagenNuevaBytes  = bytes;
       _imagenNuevaNombre = picked.name;
